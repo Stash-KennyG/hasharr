@@ -937,7 +937,7 @@ var configPageHTML = `<!doctype html>
             ).join('')
             + '</div>'
           ) : '')
-        + (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
+        //+ (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
         + '</div></details>'
         + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + fmtSceneDate(card.date || '') + '</span></div>'
         + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
