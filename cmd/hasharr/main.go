@@ -672,10 +672,11 @@ var configPageHTML = `<!doctype html>
       <div class="pathbar">
         <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
         <div class="pathrow">
-          <label style="margin:0;min-width:72px;">stashIndex</label>
-          <select id="stashIndex" style="flex:1; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+          <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
+          <select id="stashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
             <option value="-1">All</option>
           </select>
+          <button class="primary" id="downloadSabBtn" style="margin-top:0;">Download Script</button>
           <label style="margin:0;min-width:95px;">maxTimeDelta</label>
           <input id="maxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
           <label style="margin:0;min-width:88px;">maxDistance</label>
@@ -686,7 +687,6 @@ var configPageHTML = `<!doctype html>
       <div class="curlbar">
         <div class="sub">generated curl command</div>
         <div class="mono" id="curlCmd">Select a file to generate curl command.</div>
-        <button id="downloadSabBtn">Download SAB Script</button>
       </div>
       <div class="pathbar">
         <div class="sub">path</div>
