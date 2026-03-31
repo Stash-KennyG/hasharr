@@ -68,6 +68,7 @@ func TestComputeIntegrationFixture(t *testing.T) {
 	if _, err := os.Stat(fixturePath); err != nil {
 		t.Skipf("fixture not found: %s (%v)", fixturePath, err)
 	}
+	t.Logf("testing %s", fixturePath)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -85,13 +86,11 @@ func TestComputeIntegrationFixture(t *testing.T) {
 		Bitrate:     445.7,
 	}
 
-	if got.PHash != want.PHash ||
-		got.ResolutionX != want.ResolutionX ||
-		got.ResolutionY != want.ResolutionY ||
-		got.Duration != want.Duration ||
-		got.Bitrate != want.Bitrate {
-		t.Fatalf("unexpected fixture output:\n got: %+v\nwant: %+v", *got, want)
-	}
+	assertEqualField(t, "phash", got.PHash, want.PHash)
+	assertEqualField(t, "duration", got.Duration, want.Duration)
+	assertEqualField(t, "resolution_x", got.ResolutionX, want.ResolutionX)
+	assertEqualField(t, "resolution_y", got.ResolutionY, want.ResolutionY)
+	assertEqualField(t, "bitrate", got.Bitrate, want.Bitrate)
 }
 
 func requireMediaTools(t *testing.T) {
@@ -101,4 +100,12 @@ func requireMediaTools(t *testing.T) {
 			t.Skip(fmt.Sprintf("%s not found in PATH", tool))
 		}
 	}
+}
+
+func assertEqualField[T comparable](t *testing.T, name string, got, want T) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("%s mismatch: got=%v want=%v", name, got, want)
+	}
+	t.Logf("%s: %v [OK]", name, got)
 }

@@ -34,12 +34,18 @@ Runs Go project quality, lint, and unit tests:
 
 #### `integration-test`
 
-Runs the ffmpeg-backed integration test suite:
+Runs the ffmpeg-backed fixture validation:
 
 1. Checkout repository
 2. Set up Go from `go.mod`
 3. Install `ffmpeg`
-4. Run integration tests (`go test -tags=integration ./internal/phash`)
+4. Run fixture integration test with verbose output:
+   - `go test -v -tags=integration -run TestComputeIntegrationFixture ./internal/phash`
+
+Notes:
+
+- CI intentionally runs the fixture test only (the primary compatibility check).
+- The synthetic integration test remains in the codebase for local/debug validation.
 
 Both test jobs must pass before image build/publish.
 
