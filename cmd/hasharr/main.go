@@ -676,12 +676,12 @@ var configPageHTML = `<!doctype html>
           <select id="stashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
             <option value="-1">All</option>
           </select>
-          <button class="primary" id="downloadSabBtn" style="margin-top:0;">Download Script</button>
           <label style="margin:0;min-width:95px;">maxTimeDelta</label>
           <input id="maxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
           <label style="margin:0;min-width:88px;">maxDistance</label>
           <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
           <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
+          <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
         </div>
       </div>
       <div class="curlbar">
