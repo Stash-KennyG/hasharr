@@ -130,7 +130,7 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
     studio { id name }
     performers { name gender }
     tags { id }
-    groups { id }
+    groups { group { id } }
     o_counter
     scene_markers { id }
     stash_ids { stash_id }
@@ -159,7 +159,9 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
 			ID string `json:"id"`
 		} `json:"tags"`
 		Groups []struct {
-			ID string `json:"id"`
+			Group *struct {
+				ID string `json:"id"`
+			} `json:"group"`
 		} `json:"groups"`
 		OCounter     int `json:"o_counter"`
 		SceneMarkers []struct {
