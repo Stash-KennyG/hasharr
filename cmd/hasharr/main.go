@@ -626,7 +626,7 @@ var configPageHTML = `<!doctype html>
     .scene-progress { height:6px; background:#2f445a; border-top:1px solid #30445a; }
     .scene-progress > div { height:100%; width:0%; background:#2b9bd6; transition:width .08s linear; }
     .scene-title { font-family:"Inter", sans-serif; font-weight:400; font-size:18px; height:2em; line-height:1em; margin:6px 0 4px; color:#f2f4f7; }
-    .scene-meta, .scene-perfs, .scene-counts, .scene-details { color:#e3e9f0; font-size:12px; margin-top:6px; }
+    .scene-meta, .scene-perfs, .scene-counts { color:#e3e9f0; font-size:12px; margin-top:6px; }
     .scene-perfs { margin-top:10px; }
     .scene-icons { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
     .scene-ico { border:1px solid #4e6176; border-radius:999px; padding:3px 9px; font-size:15px; color:#e4e8ee; display:inline-flex; align-items:center; justify-content:center; gap:6px; line-height:1; min-height:28px; }
@@ -1016,7 +1016,7 @@ var configPageHTML = `<!doctype html>
         + '</div>'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
-        + '<details class="scene-drawer"><summary>Details</summary><div class="scene-drawer-body">'
+        + '<details class="scene-drawer"><summary>ℹ️</summary><div class="scene-drawer-body">'
         + renderFileDetails({
           hash: card.hash, phash: card.phash, path: card.path, fileSize: card.fileSize,
           fileModifiedTime: card.fileModifiedTime, resolutionX: card.resolutionX, resolutionY: card.resolutionY,
