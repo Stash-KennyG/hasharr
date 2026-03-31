@@ -874,7 +874,7 @@ var configPageHTML = `<!doctype html>
         + '<div class="kv"><span class="k">PHash:</span><span class="v">' + (file.phash || '') + '</span></div>'
         + '<div class="kv"><span class="k">Path:</span><span class="v">' + (file.path || '') + '</span></div>'
         + '<div class="kv"><span class="k">File Size:</span><span class="v">' + (fmtBytes(file.fileSize) || '') + '</span></div>'
-        + '<div class="kv"><span class="k">File Modified Stamp:</span><span class="v">' + (fmtDate(file.fileModifiedTime) || '') + '</span></div>'
+        + '<div class="kv"><span class="k">File Modified:</span><span class="v">' + (fmtDate(file.fileModifiedTime) || '') + '</span></div>'
         + '<div class="kv"><span class="k">Dimensions:</span><span class="v">' + ((file.resolutionX && file.resolutionY) ? (file.resolutionX + ' x ' + file.resolutionY) : '') + '</span></div>'
         + '<div class="kv"><span class="k">Frame Rate:</span><span class="v">' + (file.frameRate ? (Number(file.frameRate).toFixed(2) + ' fps') : '') + '</span></div>'
         + '<div class="kv"><span class="k">Bit Rate:</span><span class="v">' + (file.bitRate ? (Number(file.bitRate / 1000000).toFixed(2) + ' mbps') : '') + '</span></div>'
