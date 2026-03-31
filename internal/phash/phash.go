@@ -84,9 +84,9 @@ func Compute(ctx context.Context, path string) (*Result, error) {
 }
 
 type probedMeta struct {
-	width    int
-	height   int
-	duration float64
+	width     int
+	height    int
+	duration  float64
 	frameRate float64
 }
 
@@ -145,9 +145,9 @@ func probe(ctx context.Context, path string) (*probedMeta, error) {
 	}
 
 	return &probedMeta{
-		width:    width,
-		height:   height,
-		duration: duration,
+		width:     width,
+		height:    height,
+		duration:  duration,
 		frameRate: frameRate,
 	}, nil
 }
