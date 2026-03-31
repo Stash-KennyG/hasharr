@@ -23,20 +23,30 @@ Primary continuous integration and container build/publish workflow.
 
 #### `validate-test`
 
-Runs Go project quality and test checks:
+Runs Go project quality, lint, and unit tests:
 
 1. Checkout repository
 2. Set up Go from `go.mod`
 3. Verify formatting (`gofmt -l .`)
 4. Validate module state (`go mod tidy && git diff --exit-code`)
 5. Run static analysis (`go vet ./...`)
-6. Run tests (`go test ./...`)
+6. Run unit tests (`go test ./...`)
 
-This job must pass before image build/publish.
+#### `integration-test`
+
+Runs the ffmpeg-backed integration test suite:
+
+1. Checkout repository
+2. Set up Go from `go.mod`
+3. Install `ffmpeg`
+4. Run integration tests (`go test -tags=integration ./internal/phash`)
+
+Both test jobs must pass before image build/publish.
 
 #### `build-ghcr`
 
-Builds the container image and conditionally publishes to GHCR:
+Builds the container image and conditionally publishes to GHCR.
+Depends on `validate-test` and `integration-test`.
 
 1. Checkout repository
 2. Normalize image name to lowercase (`ghcr.io/<owner>/<repo>`)

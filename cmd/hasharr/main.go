@@ -22,6 +22,8 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+var computePHash = phash.Compute
+
 func main() {
 	addr := envOrDefault("HASHARR_ADDR", ":9995")
 
@@ -64,7 +66,7 @@ func handlePHash(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
 
-	result, err := phash.Compute(ctx, videoPath)
+	result, err := computePHash(ctx, videoPath)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
