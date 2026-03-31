@@ -1036,7 +1036,6 @@ var configPageHTML = `<!doctype html>
         + '</div></details>'
         + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + (card.date || '') + '</span></div>'
         + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
-        + (details ? '<div class="scene-details">' + details + '</div>' : '')
         + '</div>';
     }
 
