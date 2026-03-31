@@ -613,19 +613,19 @@ var configPageHTML = `<!doctype html>
     .raw-body { border:1px solid var(--border); border-radius:8px; padding:8px; background:#161b26; }
     .collapsed .raw-body { display:none; }
     .cards { display:flex; flex-direction:column; gap:10px; }
-    .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#33424E; }
+    .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#30404d; }
     .scene-media { position:relative; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:#111520; min-height:190px; }
     .scene-shot { width:100%; display:block; object-fit:cover; max-height:300px; background:#0f131c; }
     .scene-preview { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .12s ease; pointer-events:none; }
     .scene-media:hover .scene-preview { opacity:1; }
-    .studio-logo { position:absolute; top:10px; right:10px; width:32%; max-width:180px; min-width:110px; aspect-ratio:16/9; border:0; border-radius:8px; overflow:hidden; background:transparent; display:flex; align-items:flex-start; justify-content:flex-end; color:rgba(220,230,240,.85); font-size:11px; }
-    .studio-logo img { width:100%; height:100%; object-fit:contain; object-position:top right; padding:0; background:transparent; }
+    .studio-logo { position:absolute; top:10px; right:10px; width:auto; max-width:45%; max-height:34px; border:0; border-radius:8px; overflow:hidden; background:transparent; display:flex; align-items:flex-start; justify-content:flex-end; color:rgba(220,230,240,.85); font-size:11px; }
+    .studio-logo img { width:auto; height:auto; max-width:100%; max-height:34px; object-fit:contain; object-position:top right; padding:0; background:transparent; }
     .scene-overlay { position:absolute; right:8px; bottom:8px; font-size:12px; color:#d9dde3; background:rgba(10,13,18,.65); padding:2px 8px; border-radius:999px; }
     .scene-overlay .res { font-weight:700; }
     .scene-overlay .dur { font-weight:400; opacity:.95; }
     .scene-progress { height:6px; background:#2f445a; border-top:1px solid #30445a; }
     .scene-progress > div { height:100%; width:0%; background:#2b9bd6; transition:width .08s linear; }
-    .scene-title { font-family:"Inter", sans-serif; font-weight:400; font-size:18px; height:2em; line-height:1em; margin:6px 0 4px; color:#f2f4f7; }
+    .scene-title { font-family:"Inter", sans-serif; font-weight:400; font-size:18px; height:2em; line-height:1em; margin:6px 0 4px; color:rgb(245, 248, 250); }
     .scene-meta, .scene-perfs, .scene-counts { color:#e3e9f0; font-size:12px; margin-top:6px; }
     .scene-perfs { margin-top:10px; }
     .scene-icons { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
@@ -633,7 +633,7 @@ var configPageHTML = `<!doctype html>
     .scene-ico svg { width:16px; height:16px; display:block; fill:currentColor; flex:0 0 16px; align-self:center; }
     .scene-ico span { display:inline-flex; align-items:center; line-height:1; }
     .scene-footer { display:grid; grid-template-columns:1fr auto 1fr; margin-top:8px; padding-top:8px; border-top:1px solid #2e4156; color:#f2f4f7; font-size:16px; align-items:center; }
-    .scene-footer span:first-child { color:#eaf1f8; justify-self:start; }
+    .scene-footer span:first-child { color:rgb(211, 211, 211); font-weight:400; justify-self:start; }
     .scene-footer span:nth-child(2) { justify-self:center; }
     .scene-footer span:nth-child(3) { justify-self:end; }
     .scene-drawer { margin-top:8px; border:1px solid #465667; border-radius:8px; background:#2d3b48; }
@@ -648,12 +648,12 @@ var configPageHTML = `<!doctype html>
     .scene-file:first-child { border-top:0; }
     .scene-file > summary { padding:8px 10px; color:#edf3fa; font-weight:500; background:#273645; }
     .scene-file-body { padding:8px 10px; display:grid; gap:6px; background:#2f3e4d; }
-    .pill { display:inline-block; padding:2px 8px; margin-right:6px; margin-bottom:6px; font-size:12px; }
-    .g-female { color:#f7b2d9; border-color:#f7b2d955; }
-    .g-male { color:#9cc7ff; border-color:#9cc7ff55; }
-    .g-trans { color:#d2b8ff; border-color:#d2b8ff55; }
-    .g-nonbinary { color:#a8f0c1; border-color:#a8f0c155; }
-    .g-unknown { color:#d9dde3; border-color:#d9dde355; }
+    .pill { display:inline-block; padding:0; margin-right:18px; margin-bottom:4px; font-size:32px; line-height:1; font-weight:600; }
+    .g-female { color:#f7b2d9; }
+    .g-male { color:#9cc7ff; }
+    .g-trans { color:#d2b8ff; }
+    .g-nonbinary { color:#a8f0c1; }
+    .g-unknown { color:#f7b2d9; }
     pre { margin:10px 0 0; white-space:pre-wrap; color:#c9d0dd; }
     @media (max-width: 1000px) { .drawer-body, .browser-results { grid-template-columns:1fr; } .brand h1 { font-size:40px; } }
   </style>
@@ -957,6 +957,14 @@ var configPageHTML = `<!doctype html>
       return d.toLocaleString();
     }
 
+    function fmtSceneDate(s){
+      const v = String(s || '').trim();
+      if (!v) return '';
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return v;
+      return d.toLocaleDateString();
+    }
+
     function basename(p){
       const s = String(p || '');
       if (!s) return '';
@@ -985,6 +993,7 @@ var configPageHTML = `<!doctype html>
         marker: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z"></path></svg>',
         ocount: '<svg viewBox="0 0 36 36" aria-hidden="true"><path d="M22.855.758L7.875 7.024l12.537 9.733c2.633 2.224 6.377 2.937 9.77 1.518c4.826-2.018 7.096-7.576 5.072-12.413C33.232 1.024 27.68-1.261 22.855.758zm-9.962 17.924L2.05 10.284L.137 23.529a7.993 7.993 0 0 0 2.958 7.803a8.001 8.001 0 0 0 9.798-12.65zm15.339 7.015l-8.156-4.69l-.033 9.223c-.088 2 .904 3.98 2.75 5.041a5.462 5.462 0 0 0 7.479-2.051c1.499-2.644.589-6.013-2.04-7.523z"></path></svg>',
         stash: '<svg viewBox="0 0 640 512" aria-hidden="true"><path d="M58.9 42.1c3-6.1 9.6-9.6 16.3-8.7L320 64 564.8 33.4c6.7-.8 13.3 2.7 16.3 8.7l41.7 83.4c9 17.9-.6 39.6-19.8 45.1L439.6 217.3c-13.9 4-28.8-1.9-36.2-14.3L320 64 236.6 203c-7.4 12.4-22.3 18.3-36.2 14.3L37.1 170.6c-19.3-5.5-28.8-27.2-19.8-45.1L58.9 42.1zM321.1 128l54.9 91.4c14.9 24.8 44.6 36.6 72.5 28.6L576 211.6v167c0 22-15 41.2-36.4 46.6l-204.1 51c-10.2 2.6-20.9 2.6-31 0l-204.1-51C79 419.7 64 400.5 64 378.5v-167L191.6 248c27.8 8 57.6-3.8 72.5-28.6L318.9 128h2.2z"></path></svg>',
+        groups: '<svg viewBox="0 0 640 512" aria-hidden="true"><path d="M96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM0 482.3C0 383.8 79.8 304 178.3 304h91.4C368.2 304 448 383.8 448 482.3C448 498.7 434.7 512 418.3 512H29.7C13.3 512 0 498.7 0 482.3zM448 256a96 96 0 1 0 0-192 96 96 0 1 0 0 192zm0 48c-6.9 0-13.7 .4-20.4 1.2c24.4 26.3 40.8 59.9 45.2 97.2h138.2c16 0 29-13 29-29C640 334.5 569.5 304 512 304H448z"></path></svg>',
         files: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0z"></path></svg>'
       };
       const perf = (card.performers || []).map(p =>
@@ -994,6 +1003,7 @@ var configPageHTML = `<!doctype html>
       if (Number(card.tagCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.tag + '<span>' + Number(card.tagCount) + '</span></span>');
       if (Number(card.performerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.user + '<span>' + Number(card.performerCount) + '</span></span>');
       if (Number(card.markerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.marker + '<span>' + Number(card.markerCount) + '</span></span>');
+      if (Number(card.groupCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.groups + '<span>' + Number(card.groupCount) + '</span></span>');
       if (Number(card.oCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.ocount + '<span>' + Number(card.oCount) + '</span></span>');
       if (Number(card.stashIdCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.stash + '<span>' + Number(card.stashIdCount) + '</span></span>');
       if (Number(card.fileCount || 0) > 1) icons.push('<span class="scene-ico">' + iconSVG.files + '<span>' + Number(card.fileCount) + '</span></span>');
@@ -1034,7 +1044,7 @@ var configPageHTML = `<!doctype html>
           ) : '')
         + (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
         + '</div></details>'
-        + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + (card.date || '') + '</span></div>'
+        + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + fmtSceneDate(card.date || '') + '</span></div>'
         + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
         + '</div>';
     }
