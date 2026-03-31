@@ -613,34 +613,38 @@ var configPageHTML = `<!doctype html>
     .raw-body { border:1px solid var(--border); border-radius:8px; padding:8px; background:#161b26; }
     .collapsed .raw-body { display:none; }
     .cards { display:flex; flex-direction:column; gap:10px; }
-    .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#212f3f; }
+    .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#33424E; }
     .scene-media { position:relative; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:#111520; min-height:190px; }
     .scene-shot { width:100%; display:block; object-fit:cover; max-height:300px; background:#0f131c; }
     .scene-preview { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .12s ease; pointer-events:none; }
     .scene-media:hover .scene-preview { opacity:1; }
-    .studio-logo { position:absolute; top:10px; right:10px; width:32%; max-width:180px; min-width:110px; aspect-ratio:16/9; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(15,19,28,.72); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
-    .studio-logo img { width:100%; height:100%; object-fit:contain; padding:4px; }
+    .studio-logo { position:absolute; top:10px; right:10px; width:32%; max-width:180px; min-width:110px; aspect-ratio:16/9; border:1px solid rgba(200,210,220,.35); border-radius:8px; overflow:hidden; background:transparent; display:flex; align-items:center; justify-content:center; color:rgba(220,230,240,.85); font-size:11px; }
+    .studio-logo img { width:100%; height:100%; object-fit:contain; padding:2px; background:transparent; }
     .scene-overlay { position:absolute; right:8px; bottom:8px; font-size:12px; color:#d9dde3; background:rgba(10,13,18,.65); padding:2px 8px; border-radius:999px; }
     .scene-overlay .res { font-weight:700; }
     .scene-overlay .dur { font-weight:400; opacity:.95; }
     .scene-progress { height:6px; background:#2f445a; border-top:1px solid #30445a; }
     .scene-progress > div { height:100%; width:0%; background:#2b9bd6; transition:width .08s linear; }
-    .scene-title { font-size:42px; margin:6px 0 4px; color:#f2f4f7; line-height:1; font-weight:500; }
-    .scene-meta, .scene-perfs, .scene-counts, .scene-details { color:#d7dee7; font-size:12px; margin-top:6px; }
+    .scene-title { font-size:42px; margin:6px 0 4px; color:#f2f4f7; line-height:1.06; font-weight:400; }
+    .scene-meta, .scene-perfs, .scene-counts, .scene-details { color:#e3e9f0; font-size:12px; margin-top:6px; }
     .scene-perfs { margin-top:10px; }
-    .scene-icons { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
-    .scene-ico { border:1px solid #4e6176; border-radius:999px; padding:3px 9px; font-size:15px; color:#e4e8ee; display:inline-flex; align-items:center; gap:6px; line-height:1; }
+    .scene-icons { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+    .scene-ico { border:1px solid #4e6176; border-radius:999px; padding:3px 9px; font-size:15px; color:#e4e8ee; display:inline-flex; align-items:center; justify-content:center; gap:6px; line-height:1; min-height:28px; }
     .scene-ico svg { width:16px; height:16px; display:block; fill:currentColor; }
     .scene-footer { display:flex; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid #2e4156; color:#f2f4f7; font-size:16px; }
-    .scene-drawer { margin-top:8px; border:1px solid var(--border); border-radius:8px; background:#141a25; }
-    .scene-drawer summary { list-style:none; cursor:pointer; padding:8px 10px; color:#ffb15f; font-weight:600; }
+    .scene-footer span:first-child { color:#eaf1f8; }
+    .scene-drawer { margin-top:8px; border:1px solid #465667; border-radius:8px; background:#2d3b48; }
+    .scene-drawer summary { list-style:none; cursor:pointer; padding:8px 10px; color:#f2f4f7; font-weight:600; }
     .scene-drawer summary::-webkit-details-marker { display:none; }
-    .scene-drawer-body { padding:8px 10px; border-top:1px solid var(--border); display:grid; gap:4px; font-size:12px; color:var(--muted); }
-    .scene-file-list { margin-top:6px; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+    .scene-drawer-body { padding:10px 12px; border-top:1px solid #4a5b6e; display:grid; gap:6px; font-size:13px; color:#e7edf4; line-height:1.35; }
+    .kv { display:grid; grid-template-columns:220px 1fr; gap:10px; align-items:start; }
+    .kv .k { font-weight:700; color:#f0f5fb; }
+    .kv .v { color:#dbe5ef; overflow-wrap:anywhere; }
+    .scene-file-list { margin-top:8px; border:1px solid #495a6c; border-radius:6px; overflow:hidden; }
     .scene-file { border-top:1px solid #2b3a4c; }
     .scene-file:first-child { border-top:0; }
-    .scene-file > summary { padding:8px 10px; color:#e4e8ee; font-weight:500; background:#1a2533; }
-    .scene-file-body { padding:8px 10px; display:grid; gap:4px; background:#182231; }
+    .scene-file > summary { padding:8px 10px; color:#edf3fa; font-weight:500; background:#273645; }
+    .scene-file-body { padding:8px 10px; display:grid; gap:6px; background:#2f3e4d; }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; margin-bottom:6px; font-size:12px; }
     .g-female { color:#f7b2d9; border-color:#f7b2d955; }
     .g-male { color:#9cc7ff; border-color:#9cc7ff55; }
@@ -959,16 +963,16 @@ var configPageHTML = `<!doctype html>
 
     function renderFileDetails(file){
       return ''
-        + '<div>Hash: ' + (file.hash || '') + '</div>'
-        + '<div>PHash: ' + (file.phash || '') + '</div>'
-        + '<div>Path: ' + (file.path || '') + '</div>'
-        + '<div>File Size: ' + (fmtBytes(file.fileSize) || '') + '</div>'
-        + '<div>File Modified Stamp: ' + (fmtDate(file.fileModifiedTime) || '') + '</div>'
-        + '<div>Dimensions: ' + ((file.resolutionX && file.resolutionY) ? (file.resolutionX + ' x ' + file.resolutionY) : '') + '</div>'
-        + '<div>Frame Rate: ' + (file.frameRate ? (Number(file.frameRate).toFixed(2) + ' fps') : '') + '</div>'
-        + '<div>Bit Rate: ' + (file.bitRate ? (Number(file.bitRate / 1000000).toFixed(2) + ' mbps') : '') + '</div>'
-        + '<div>Video Codec: ' + (file.videoCodec || '') + '</div>'
-        + '<div>Audio Codec: ' + (file.audioCodec || '') + '</div>';
+        + '<div class="kv"><span class="k">Hash:</span><span class="v">' + (file.hash || '') + '</span></div>'
+        + '<div class="kv"><span class="k">PHash:</span><span class="v">' + (file.phash || '') + '</span></div>'
+        + '<div class="kv"><span class="k">Path:</span><span class="v">' + (file.path || '') + '</span></div>'
+        + '<div class="kv"><span class="k">File Size:</span><span class="v">' + (fmtBytes(file.fileSize) || '') + '</span></div>'
+        + '<div class="kv"><span class="k">File Modified Stamp:</span><span class="v">' + (fmtDate(file.fileModifiedTime) || '') + '</span></div>'
+        + '<div class="kv"><span class="k">Dimensions:</span><span class="v">' + ((file.resolutionX && file.resolutionY) ? (file.resolutionX + ' x ' + file.resolutionY) : '') + '</span></div>'
+        + '<div class="kv"><span class="k">Frame Rate:</span><span class="v">' + (file.frameRate ? (Number(file.frameRate).toFixed(2) + ' fps') : '') + '</span></div>'
+        + '<div class="kv"><span class="k">Bit Rate:</span><span class="v">' + (file.bitRate ? (Number(file.bitRate / 1000000).toFixed(2) + ' mbps') : '') + '</span></div>'
+        + '<div class="kv"><span class="k">Video Codec:</span><span class="v">' + (file.videoCodec || '') + '</span></div>'
+        + '<div class="kv"><span class="k">Audio Codec:</span><span class="v">' + (file.audioCodec || '') + '</span></div>';
     }
 
     function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
@@ -998,7 +1002,7 @@ var configPageHTML = `<!doctype html>
       const preview = scenePreviewURL(publicUrl || endpointUrl, sid);
       const studioLogo = studioImageURL(publicUrl || endpointUrl, card.studioId);
       const title = card.title || match.title || '(untitled)';
-      const titleHTML = url ? ('<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">' + title + '</a>') : title;
+      const titleHTML = title;
       return '<div class="scene-card">'
         + '<div class="scene-media">'
         + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
