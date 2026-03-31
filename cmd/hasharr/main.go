@@ -266,9 +266,9 @@ var configPageHTML = `<!doctype html>
     * { box-sizing:border-box; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     body { margin:0; background:var(--bg); color:var(--text); }
     .wrap { max-width:1000px; margin:28px auto; padding:0 16px; display:grid; grid-template-columns:320px 1fr; gap:16px; }
-    .brand { max-width:1000px; margin:22px auto 0; padding:0 16px; display:flex; align-items:center; gap:12px; }
-    .brand img { width:36px; height:36px; border-radius:8px; }
-    .brand h1 { margin:0; font-size:22px; }
+    .brand { max-width:1000px; margin:22px auto 0; padding:0 16px; display:flex; align-items:center; gap:14px; }
+    .brand img { width:108px; height:108px; border-radius:12px; }
+    .brand h1 { margin:0; font-size:72px; line-height:1; }
     .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
     h1 { margin:0 0 4px; font-size:20px; }
     h2 { margin:0 0 12px; font-size:14px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
@@ -286,6 +286,8 @@ var configPageHTML = `<!doctype html>
     .status { min-height:22px; margin-top:10px; font-size:13px; }
     .ok { color:var(--ok); } .err { color:var(--err); }
     .tiny { color:var(--muted); font-size:12px; margin-top:8px; }
+    .usage { margin-top:12px; padding-top:10px; border-top:1px dashed var(--border); color:var(--muted); font-size:12px; line-height:1.5; }
+    .usage code { color:var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -317,6 +319,12 @@ var configPageHTML = `<!doctype html>
       </div>
       <div class="status" id="status"></div>
       <div class="tiny">Display format: <strong>Name vVersion</strong> after endpoint validation succeeds.</div>
+      <div class="usage">
+        <div><strong>Quick usage</strong></div>
+        <div>- Add endpoint details, click <strong>Test</strong>, then <strong>Save</strong>.</div>
+        <div>- Health check: <code>GET /healthz</code></div>
+        <div>- Hash API: <code>POST /v1/phash</code> with body <code>"/path/to/video.mp4"</code></div>
+      </div>
     </section>
   </div>
   <script>
