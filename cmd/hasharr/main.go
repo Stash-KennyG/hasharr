@@ -636,6 +636,11 @@ var configPageHTML = `<!doctype html>
     .scene-drawer summary { list-style:none; cursor:pointer; padding:8px 10px; color:#ffb15f; font-weight:600; }
     .scene-drawer summary::-webkit-details-marker { display:none; }
     .scene-drawer-body { padding:8px 10px; border-top:1px solid var(--border); display:grid; gap:4px; font-size:12px; color:var(--muted); }
+    .scene-file-list { margin-top:6px; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+    .scene-file { border-top:1px solid #2b3a4c; }
+    .scene-file:first-child { border-top:0; }
+    .scene-file > summary { padding:8px 10px; color:#e4e8ee; font-weight:500; background:#1a2533; }
+    .scene-file-body { padding:8px 10px; display:grid; gap:4px; background:#182231; }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; margin-bottom:6px; font-size:12px; }
     .g-female { color:#f7b2d9; border-color:#f7b2d955; }
     .g-male { color:#9cc7ff; border-color:#9cc7ff55; }
@@ -945,6 +950,27 @@ var configPageHTML = `<!doctype html>
       return d.toLocaleString();
     }
 
+    function basename(p){
+      const s = String(p || '');
+      if (!s) return '';
+      const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+      return i >= 0 ? s.slice(i + 1) : s;
+    }
+
+    function renderFileDetails(file){
+      return ''
+        + '<div>Hash: ' + (file.hash || '') + '</div>'
+        + '<div>PHash: ' + (file.phash || '') + '</div>'
+        + '<div>Path: ' + (file.path || '') + '</div>'
+        + '<div>File Size: ' + (fmtBytes(file.fileSize) || '') + '</div>'
+        + '<div>File Modified Stamp: ' + (fmtDate(file.fileModifiedTime) || '') + '</div>'
+        + '<div>Dimensions: ' + ((file.resolutionX && file.resolutionY) ? (file.resolutionX + ' x ' + file.resolutionY) : '') + '</div>'
+        + '<div>Frame Rate: ' + (file.frameRate ? (Number(file.frameRate).toFixed(2) + ' fps') : '') + '</div>'
+        + '<div>Bit Rate: ' + (file.bitRate ? (Number(file.bitRate / 1000000).toFixed(2) + ' mbps') : '') + '</div>'
+        + '<div>Video Codec: ' + (file.videoCodec || '') + '</div>'
+        + '<div>Audio Codec: ' + (file.audioCodec || '') + '</div>';
+    }
+
     function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
       const iconSVG = {
         tag: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M0 80L0 229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7L48 32C21.5 32 0 53.5 0 80zm112 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"></path></svg>',
@@ -965,6 +991,7 @@ var configPageHTML = `<!doctype html>
       if (Number(card.stashIdCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.stash + '<span>' + Number(card.stashIdCount) + '</span></span>');
       if (Number(card.fileCount || 0) > 1) icons.push('<span class="scene-ico">' + iconSVG.files + '<span>' + Number(card.fileCount) + '</span></span>');
       const details = String(card.details || '').trim();
+      const files = Array.isArray(card.files) ? card.files : [];
       const sid = card.id || match.id || '';
       const url = sceneURL(publicUrl || endpointUrl, sid);
       const shot = sceneImageURL(publicUrl || endpointUrl, sid);
@@ -983,16 +1010,21 @@ var configPageHTML = `<!doctype html>
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
         + '<details class="scene-drawer"><summary>Details</summary><div class="scene-drawer-body">'
-        + '<div>Hash: ' + (card.hash || '') + '</div>'
-        + '<div>PHash: ' + (card.phash || '') + '</div>'
-        + '<div>Path: ' + (card.path || '') + '</div>'
-        + '<div>File Size: ' + (fmtBytes(card.fileSize) || '') + '</div>'
-        + '<div>File Modified Stamp: ' + (fmtDate(card.fileModifiedTime) || '') + '</div>'
-        + '<div>Dimensions: ' + ((card.resolutionX && card.resolutionY) ? (card.resolutionX + ' x ' + card.resolutionY) : '') + '</div>'
-        + '<div>Frame Rate: ' + (card.frameRate ? (Number(card.frameRate).toFixed(2) + ' fps') : '') + '</div>'
-        + '<div>Bit Rate: ' + (card.bitRate ? (Number(card.bitRate / 1000000).toFixed(2) + ' mbps') : '') + '</div>'
-        + '<div>Video Codec: ' + (card.videoCodec || '') + '</div>'
-        + '<div>Audio Codec: ' + (card.audioCodec || '') + '</div>'
+        + renderFileDetails({
+          hash: card.hash, phash: card.phash, path: card.path, fileSize: card.fileSize,
+          fileModifiedTime: card.fileModifiedTime, resolutionX: card.resolutionX, resolutionY: card.resolutionY,
+          frameRate: card.frameRate, bitRate: card.bitRate, videoCodec: card.videoCodec, audioCodec: card.audioCodec
+        })
+        + (files.length > 1 ? (
+            '<div class="scene-file-list">'
+            + files.map((f, i) =>
+              '<details class="scene-file"' + (i === 0 ? ' open' : '') + '>'
+              + '<summary>' + (basename(f.path) || ('File ' + (i + 1))) + (i === 0 ? ' <span style="opacity:.8;">(Primary file)</span>' : '') + '</summary>'
+              + '<div class="scene-file-body">' + renderFileDetails(f) + '</div>'
+              + '</details>'
+            ).join('')
+            + '</div>'
+          ) : '')
         + (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
         + '</div></details>'
         + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + (card.date || '') + '</span></div>'
