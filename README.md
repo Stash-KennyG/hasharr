@@ -60,6 +60,30 @@ curl -s -X POST http://localhost:9995/v1/phash \
 
 Default listen address is `:9995` (override with `HASHARR_ADDR`).
 
+## Easy Path (GHCR)
+
+Pull and run the latest image:
+
+```bash
+docker pull ghcr.io/stash-kennyg/hasharr:latest
+docker run --rm -p 9995:9995 \
+  -v /downloaded:/downloaded:ro \
+  ghcr.io/stash-kennyg/hasharr:latest
+```
+
+Hello World:
+```
+curl -s -X GET http://localhost:9995/v1/healthz 
+```
+
+Test request:
+
+```bash
+curl -s -X POST http://localhost:9995/v1/phash \
+  -H 'Content-Type: text/plain' \
+  --data '"/downloaded/comp/man/vid/vid123.mp4"'
+```
+
 ## Docker
 
 Build:
@@ -78,21 +102,3 @@ docker run --rm -p 9995:9995 \
 
 > The container must be able to read the target media path (bind mount your media directories).
 
-## Easy Path (GHCR)
-
-Pull and run the latest image:
-
-```bash
-docker pull ghcr.io/stash-kennyg/hasharr:latest
-docker run --rm -p 9995:9995 \
-  -v /downloaded:/downloaded:ro \
-  ghcr.io/stash-kennyg/hasharr:latest
-```
-
-Test request:
-
-```bash
-curl -s -X POST http://localhost:9995/v1/phash \
-  -H 'Content-Type: text/plain' \
-  --data '"/downloaded/comp/man/vid/vid123.mp4"'
-```
