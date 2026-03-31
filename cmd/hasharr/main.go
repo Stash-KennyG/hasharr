@@ -46,6 +46,11 @@ type fsListResponse struct {
 	Entries []fsEntry `json:"entries"`
 }
 
+type sceneCardRequest struct {
+	EndpointURL string `json:"endpointUrl"`
+	SceneID     string `json:"sceneId"`
+}
+
 var computePHash = phash.Compute
 var configStore *stashconfig.Store
 var resourcesDir string
@@ -69,6 +74,7 @@ func main() {
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
 	mux.HandleFunc("/v1/phash-match", handlePHashMatch)
+	mux.HandleFunc("/v1/scene-card", handleSceneCard)
 	mux.HandleFunc("/v1/fs/list", handleFSList)
 	mux.HandleFunc("/v1/stash-endpoints", handleStashEndpoints)
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
@@ -321,6 +327,44 @@ func handleFSList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func handleSceneCard(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req sceneCardRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	req.EndpointURL = strings.TrimSpace(req.EndpointURL)
+	req.SceneID = strings.TrimSpace(req.SceneID)
+	if req.EndpointURL == "" || req.SceneID == "" {
+		writeErr(w, http.StatusBadRequest, "endpointUrl and sceneId are required")
+		return
+	}
+	var ep *stashconfig.Endpoint
+	for _, candidate := range configStore.List() {
+		if strings.EqualFold(strings.TrimSpace(candidate.GraphQLURL), req.EndpointURL) {
+			c := candidate
+			ep = &c
+			break
+		}
+	}
+	if ep == nil {
+		writeErr(w, http.StatusBadRequest, "endpoint not configured")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	card, err := stashconfig.QuerySceneCard(ctx, &http.Client{Timeout: 15 * time.Second}, ep.GraphQLURL, ep.APIKey, req.SceneID)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, card)
+}
+
 func parsePath(r *http.Request) (string, error) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
@@ -556,11 +600,26 @@ var configPageHTML = `<!doctype html>
     tr.selected { background:#2b3442; }
     tr:hover { background:#27303d; cursor:pointer; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break:break-all; }
-    .results { min-height:360px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px; display:flex; flex-direction:column; }
+    .results { min-height:360px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:10px; }
     .spinner { height:4px; background:transparent; overflow:hidden; border-radius:3px; visibility:hidden; }
     .spinner.show { visibility:visible; }
     .spinner::before { content:''; display:block; width:35%; height:100%; background:var(--accent); animation:slide 1s linear infinite; }
     @keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
+    .raw-drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#1b2130; }
+    .raw-caret { color:var(--muted); transition:transform .15s ease; user-select:none; }
+    .collapsed .raw-caret { transform:rotate(-90deg); }
+    .raw-body { border:1px solid var(--border); border-radius:8px; padding:8px; background:#161b26; }
+    .collapsed .raw-body { display:none; }
+    .cards { display:flex; flex-direction:column; gap:10px; }
+    .scene-card { border:1px solid var(--border); border-radius:8px; padding:10px; background:#1a1f2c; }
+    .scene-title { font-size:18px; margin:0 0 6px; }
+    .scene-meta, .scene-perfs, .scene-counts, .scene-details { color:var(--muted); font-size:12px; margin-top:6px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; margin-bottom:6px; font-size:12px; }
+    .g-female { color:#f7b2d9; border-color:#f7b2d955; }
+    .g-male { color:#9cc7ff; border-color:#9cc7ff55; }
+    .g-trans { color:#d2b8ff; border-color:#d2b8ff55; }
+    .g-nonbinary { color:#a8f0c1; border-color:#a8f0c155; }
+    .g-unknown { color:#d9dde3; border-color:#d9dde355; }
     pre { margin:10px 0 0; white-space:pre-wrap; color:#c9d0dd; }
     @media (max-width: 1000px) { .drawer-body, .browser-results { grid-template-columns:1fr; } .brand h1 { font-size:40px; } }
   </style>
@@ -648,7 +707,11 @@ var configPageHTML = `<!doctype html>
         <div class="results">
           <div class="sub">results</div>
           <div class="spinner" id="spinner"></div>
-          <pre id="resultJson">Results</pre>
+          <div id="cards" class="cards"></div>
+          <div id="rawDrawer" class="collapsed">
+            <div class="raw-drawer-head" id="rawToggle"><span>Raw JSON</span><span class="raw-caret">▾</span></div>
+            <div class="raw-body"><pre id="resultJson">Results</pre></div>
+          </div>
         </div>
       </div>
     </section>
@@ -786,6 +849,73 @@ var configPageHTML = `<!doctype html>
       return n;
     }
 
+    function genderClass(g){
+      const s = String(g || '').toLowerCase();
+      if (s === 'female') return 'g-female';
+      if (s === 'male') return 'g-male';
+      if (s.includes('trans')) return 'g-trans';
+      if (s.includes('non') || s === 'nb') return 'g-nonbinary';
+      return 'g-unknown';
+    }
+
+    async function fetchSceneCard(endpointUrl, sceneId){
+      const res = await fetch('/v1/scene-card', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ endpointUrl, sceneId })
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'scene card fetch failed');
+      return out;
+    }
+
+    function renderSceneCard(card, endpointName, endpointUrl, match){
+      const perf = (card.performers || []).map(p =>
+        '<span class="pill ' + genderClass(p.gender) + '">' + p.name + '</span>'
+      ).join('');
+      const counts = [];
+      if (Number(card.stashIdCount || 0) > 0) counts.push('StashIDs: ' + Number(card.stashIdCount));
+      if (Number(card.tagCount || 0) > 0) counts.push('Tags: ' + Number(card.tagCount));
+      if (Number(card.markerCount || 0) > 0) counts.push('Markers: ' + Number(card.markerCount));
+      if (Number(card.fileCount || 0) > 1) counts.push('Files: ' + Number(card.fileCount));
+      const details = String(card.details || '').trim();
+      return '<div class="scene-card">'
+        + '<div class="scene-title">' + (card.title || match.title || '(untitled)') + '</div>'
+        + '<div class="scene-meta">Endpoint: ' + endpointName + ' (' + endpointUrl + ') | Scene: ' + (card.id || match.id || '') + ' | Distance: ' + Number(match.distance || 0) + ' | ΔDuration: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>'
+        + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
+        + (counts.length ? '<div class="scene-counts">' + counts.join(' | ') + '</div>' : '')
+        + (details ? '<div class="scene-details">' + details + '</div>' : '')
+        + '</div>';
+    }
+
+    async function renderMatchCards(result){
+      const host = el('cards');
+      host.innerHTML = '';
+      const lookups = result.lookups || [];
+      const tasks = [];
+      for (const l of lookups){
+        const m = l.matches || {};
+        const rows = [...(m.exactMatches || []), ...(m.partialMatches || [])];
+        for (const row of rows){
+          if (!row || !row.id) continue;
+          tasks.push({ endpointName: l.endpointName || '', endpointUrl: l.endpointUrl || '', match: row });
+        }
+      }
+      if (!tasks.length) {
+        host.innerHTML = '<div class="scene-meta">No scene matches found.</div>';
+        return;
+      }
+      const cards = await Promise.all(tasks.map(async (t) => {
+        try {
+          const card = await fetchSceneCard(t.endpointUrl, t.match.id);
+          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.match);
+        } catch (e) {
+          return '<div class="scene-card"><div class="scene-title">' + (t.match.title || t.match.id) + '</div><div class="scene-meta">Failed to fetch scene card: ' + String(e.message || e) + '</div></div>';
+        }
+      }));
+      host.innerHTML = cards.join('');
+    }
+
     async function loadDir(path){
       const q = path ? ('?path=' + encodeURIComponent(path)) : '';
       const res = await fetch('/v1/fs/list' + q);
@@ -825,6 +955,11 @@ var configPageHTML = `<!doctype html>
       const out = await res.json().catch(()=>({error:'Invalid response'}));
       showSpin(false);
       el('resultJson').textContent = JSON.stringify(out, null, 2);
+      if (res.ok) {
+        await renderMatchCards(out);
+      } else {
+        el('cards').innerHTML = '';
+      }
     }
 
     async function upFolder(){
@@ -841,6 +976,7 @@ var configPageHTML = `<!doctype html>
     el('deleteBtn').onclick = deleteEndpoint;
     el('hashBtn').onclick = runHash;
     el('upBtn').onclick = upFolder;
+    el('rawToggle').onclick = () => el('rawDrawer').classList.toggle('collapsed');
     el('stashIndex').onchange = updateCurl;
     el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };

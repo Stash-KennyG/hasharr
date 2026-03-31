@@ -37,6 +37,24 @@ type systemStatusPayload struct {
 	AppSchema string `json:"appSchema"`
 }
 
+type SceneCard struct {
+	ID           string      `json:"id"`
+	Title        string      `json:"title"`
+	Date         string      `json:"date,omitempty"`
+	Details      string      `json:"details,omitempty"`
+	Studio       string      `json:"studio,omitempty"`
+	Performers   []Performer `json:"performers,omitempty"`
+	TagCount     int         `json:"tagCount"`
+	MarkerCount  int         `json:"markerCount"`
+	StashIDCount int         `json:"stashIdCount"`
+	FileCount    int         `json:"fileCount"`
+}
+
+type Performer struct {
+	Name   string `json:"name"`
+	Gender string `json:"gender,omitempty"`
+}
+
 func QueryVersion(ctx context.Context, client *http.Client, graphqlURL, apiKey string) (string, error) {
 	queries := []string{
 		`query { version { version } }`,
@@ -87,6 +105,71 @@ func QuerySceneCounts(ctx context.Context, client *http.Client, graphqlURL, apiK
 	}
 
 	return fp.Count, sp.SceneCount, nil
+}
+
+func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey, sceneID string) (SceneCard, error) {
+	query := fmt.Sprintf(`query {
+  findScene(id: %q) {
+    id
+    title
+    date
+    details
+    studio { name }
+    performers { name gender }
+    tags { id }
+    scene_markers { id }
+    stash_ids { stash_id }
+    files { id }
+  }
+}`, sceneID)
+	raw, err := doQueryRaw(ctx, client, graphqlURL, apiKey, query)
+	if err != nil {
+		return SceneCard{}, err
+	}
+	sceneRaw, ok := raw["findScene"]
+	if !ok {
+		return SceneCard{}, fmt.Errorf("missing findScene in response")
+	}
+	var payload struct {
+		ID      string `json:"id"`
+		Title   string `json:"title"`
+		Date    string `json:"date"`
+		Details string `json:"details"`
+		Studio  *struct {
+			Name string `json:"name"`
+		} `json:"studio"`
+		Performers []Performer `json:"performers"`
+		Tags       []struct {
+			ID string `json:"id"`
+		} `json:"tags"`
+		SceneMarkers []struct {
+			ID string `json:"id"`
+		} `json:"scene_markers"`
+		StashIDs []struct {
+			StashID string `json:"stash_id"`
+		} `json:"stash_ids"`
+		Files []struct {
+			ID string `json:"id"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(sceneRaw, &payload); err != nil {
+		return SceneCard{}, err
+	}
+	card := SceneCard{
+		ID:           payload.ID,
+		Title:        payload.Title,
+		Date:         payload.Date,
+		Details:      payload.Details,
+		Performers:   payload.Performers,
+		TagCount:     len(payload.Tags),
+		MarkerCount:  len(payload.SceneMarkers),
+		StashIDCount: len(payload.StashIDs),
+		FileCount:    len(payload.Files),
+	}
+	if payload.Studio != nil {
+		card.Studio = payload.Studio.Name
+	}
+	return card, nil
 }
 
 func doQuery(ctx context.Context, client *http.Client, graphqlURL, apiKey, query string) (string, error) {
