@@ -38,16 +38,23 @@ type systemStatusPayload struct {
 }
 
 type SceneCard struct {
-	ID           string      `json:"id"`
-	Title        string      `json:"title"`
-	Date         string      `json:"date,omitempty"`
-	Details      string      `json:"details,omitempty"`
-	Studio       string      `json:"studio,omitempty"`
-	Performers   []Performer `json:"performers,omitempty"`
-	TagCount     int         `json:"tagCount"`
-	MarkerCount  int         `json:"markerCount"`
-	StashIDCount int         `json:"stashIdCount"`
-	FileCount    int         `json:"fileCount"`
+	ID             string      `json:"id"`
+	Title          string      `json:"title"`
+	Date           string      `json:"date,omitempty"`
+	Details        string      `json:"details,omitempty"`
+	StudioID       string      `json:"studioId,omitempty"`
+	Studio         string      `json:"studio,omitempty"`
+	Performers     []Performer `json:"performers,omitempty"`
+	TagCount       int         `json:"tagCount"`
+	PerformerCount int         `json:"performerCount"`
+	GroupCount     int         `json:"groupCount"`
+	OCount         int         `json:"oCount"`
+	ResolutionX    int         `json:"resolutionX"`
+	ResolutionY    int         `json:"resolutionY"`
+	Duration       float64     `json:"duration"`
+	MarkerCount    int         `json:"markerCount"`
+	StashIDCount   int         `json:"stashIdCount"`
+	FileCount      int         `json:"fileCount"`
 }
 
 type Performer struct {
@@ -114,12 +121,14 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
     title
     date
     details
-    studio { name }
+    studio { id name }
     performers { name gender }
     tags { id }
+    groups { id }
+    o_counter
     scene_markers { id }
     stash_ids { stash_id }
-    files { id }
+    files { id width height duration }
   }
 }`, sceneID)
 	raw, err := doQueryRaw(ctx, client, graphqlURL, apiKey, query)
@@ -136,12 +145,17 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
 		Date    string `json:"date"`
 		Details string `json:"details"`
 		Studio  *struct {
+			ID   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"studio"`
 		Performers []Performer `json:"performers"`
 		Tags       []struct {
 			ID string `json:"id"`
 		} `json:"tags"`
+		Groups []struct {
+			ID string `json:"id"`
+		} `json:"groups"`
+		OCounter     int `json:"o_counter"`
 		SceneMarkers []struct {
 			ID string `json:"id"`
 		} `json:"scene_markers"`
@@ -149,25 +163,37 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
 			StashID string `json:"stash_id"`
 		} `json:"stash_ids"`
 		Files []struct {
-			ID string `json:"id"`
+			ID       string  `json:"id"`
+			Width    int     `json:"width"`
+			Height   int     `json:"height"`
+			Duration float64 `json:"duration"`
 		} `json:"files"`
 	}
 	if err := json.Unmarshal(sceneRaw, &payload); err != nil {
 		return SceneCard{}, err
 	}
 	card := SceneCard{
-		ID:           payload.ID,
-		Title:        payload.Title,
-		Date:         payload.Date,
-		Details:      payload.Details,
-		Performers:   payload.Performers,
-		TagCount:     len(payload.Tags),
-		MarkerCount:  len(payload.SceneMarkers),
-		StashIDCount: len(payload.StashIDs),
-		FileCount:    len(payload.Files),
+		ID:             payload.ID,
+		Title:          payload.Title,
+		Date:           payload.Date,
+		Details:        payload.Details,
+		Performers:     payload.Performers,
+		TagCount:       len(payload.Tags),
+		PerformerCount: len(payload.Performers),
+		GroupCount:     len(payload.Groups),
+		OCount:         payload.OCounter,
+		MarkerCount:    len(payload.SceneMarkers),
+		StashIDCount:   len(payload.StashIDs),
+		FileCount:      len(payload.Files),
 	}
 	if payload.Studio != nil {
+		card.StudioID = payload.Studio.ID
 		card.Studio = payload.Studio.Name
+	}
+	if len(payload.Files) > 0 {
+		card.ResolutionX = payload.Files[0].Width
+		card.ResolutionY = payload.Files[0].Height
+		card.Duration = payload.Files[0].Duration
 	}
 	return card, nil
 }

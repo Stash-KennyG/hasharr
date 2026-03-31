@@ -613,9 +613,22 @@ var configPageHTML = `<!doctype html>
     .raw-body { border:1px solid var(--border); border-radius:8px; padding:8px; background:#161b26; }
     .collapsed .raw-body { display:none; }
     .cards { display:flex; flex-direction:column; gap:10px; }
-    .scene-card { border:1px solid var(--border); border-radius:8px; padding:10px; background:#1a1f2c; }
-    .scene-title { font-size:18px; margin:0 0 6px; }
+    .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#1a1f2c; }
+    .scene-media { position:relative; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#111520; min-height:190px; }
+    .scene-shot { width:100%; display:block; object-fit:cover; max-height:300px; background:#0f131c; }
+    .scene-preview { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .12s ease; pointer-events:none; }
+    .scene-media:hover .scene-preview { opacity:1; }
+    .studio-logo { position:absolute; top:8px; right:8px; width:110px; height:62px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:#0f131c; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
+    .studio-logo img { width:100%; height:100%; object-fit:cover; }
+    .scene-overlay { position:absolute; right:8px; bottom:8px; font-size:12px; color:#d9dde3; background:rgba(10,13,18,.65); padding:2px 8px; border-radius:999px; }
+    .scene-title { font-size:28px; margin:10px 0 6px; color:#ff8a2a; line-height:1; }
     .scene-meta, .scene-perfs, .scene-counts, .scene-details { color:var(--muted); font-size:12px; margin-top:6px; }
+    .scene-icons { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+    .scene-ico { border:1px solid var(--border); border-radius:999px; padding:2px 8px; font-size:12px; color:#ff8a2a; }
+    .scene-drawer { margin-top:8px; border:1px solid var(--border); border-radius:8px; background:#141a25; }
+    .scene-drawer summary { list-style:none; cursor:pointer; padding:8px 10px; color:#ff8a2a; font-weight:600; }
+    .scene-drawer summary::-webkit-details-marker { display:none; }
+    .scene-drawer-body { padding:8px 10px; border-top:1px solid var(--border); display:grid; gap:4px; font-size:12px; color:var(--muted); }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; margin-bottom:6px; font-size:12px; }
     .g-female { color:#f7b2d9; border-color:#f7b2d955; }
     .g-male { color:#9cc7ff; border-color:#9cc7ff55; }
@@ -881,26 +894,73 @@ var configPageHTML = `<!doctype html>
       return base + '/scenes/' + encodeURIComponent(sceneId);
     }
 
+    function sceneImageURL(publicUrl, sceneId){
+      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
+      if (!base || !sceneId) return '';
+      return base + '/scene/' + encodeURIComponent(sceneId) + '/screenshot';
+    }
+
+    function scenePreviewURL(publicUrl, sceneId){
+      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
+      if (!base || !sceneId) return '';
+      return base + '/scene/' + encodeURIComponent(sceneId) + '/preview';
+    }
+
+    function studioImageURL(publicUrl, studioId){
+      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
+      if (!base || !studioId) return '';
+      return base + '/studio/' + encodeURIComponent(studioId) + '/image';
+    }
+
+    function fmtDuration(sec){
+      const s = Math.max(0, Number(sec || 0));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = Math.floor(s % 60);
+      if (h > 0) return String(h) + ':' + String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
+      return String(m) + ':' + String(r).padStart(2, '0');
+    }
+
     function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
       const perf = (card.performers || []).map(p =>
         '<span class="pill ' + genderClass(p.gender) + '">' + p.name + '</span>'
       ).join('');
-      const counts = [];
-      if (Number(card.stashIdCount || 0) > 0) counts.push('StashIDs: ' + Number(card.stashIdCount));
-      if (Number(card.tagCount || 0) > 0) counts.push('Tags: ' + Number(card.tagCount));
-      if (Number(card.markerCount || 0) > 0) counts.push('Markers: ' + Number(card.markerCount));
-      if (Number(card.fileCount || 0) > 1) counts.push('Files: ' + Number(card.fileCount));
+      const icons = [];
+      if (Number(card.tagCount || 0) > 0) icons.push('<span class="scene-ico">🏷 ' + Number(card.tagCount) + '</span>');
+      if (Number(card.performerCount || 0) > 0) icons.push('<span class="scene-ico">👤 ' + Number(card.performerCount) + '</span>');
+      if (Number(card.groupCount || 0) > 0) icons.push('<span class="scene-ico">📍 ' + Number(card.groupCount) + '</span>');
+      if (Number(card.oCount || 0) > 0) icons.push('<span class="scene-ico">💦 ' + Number(card.oCount) + '</span>');
+      if (Number(card.stashIdCount || 0) > 0) icons.push('<span class="scene-ico">📦 ' + Number(card.stashIdCount) + '</span>');
+      if (Number(card.markerCount || 0) > 0) icons.push('<span class="scene-ico">📑 ' + Number(card.markerCount) + '</span>');
+      if (Number(card.fileCount || 0) > 1) icons.push('<span class="scene-ico">🎞 ' + Number(card.fileCount) + '</span>');
       const details = String(card.details || '').trim();
       const sid = card.id || match.id || '';
       const url = sceneURL(publicUrl || endpointUrl, sid);
+      const shot = sceneImageURL(publicUrl || endpointUrl, sid);
+      const preview = scenePreviewURL(publicUrl || endpointUrl, sid);
+      const studioLogo = studioImageURL(publicUrl || endpointUrl, card.studioId);
       const title = card.title || match.title || '(untitled)';
       const titleHTML = url ? ('<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">' + title + '</a>') : title;
       return '<div class="scene-card">'
+        + '<div class="scene-media">'
+        + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
+        + (preview ? '<video class="scene-preview" loop preload="none" muted playsinline src="' + preview + '" onmouseenter="this.play&&this.play()" onmouseleave="this.pause&&this.pause()"></video>' : '')
+        + (studioLogo ? '<div class="studio-logo"><img loading="lazy" src="' + studioLogo + '" alt="Studio logo" onerror="this.parentElement.textContent=\'Studio\';" /></div>' : '<div class="studio-logo">Studio</div>')
+        + '<div class="scene-overlay">' + ((card.resolutionX && card.resolutionY) ? (card.resolutionY + 'p') : '') + ' ' + (card.duration ? fmtDuration(card.duration) : '') + '</div>'
+        + '</div>'
+        + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
         + '<div class="scene-meta">Endpoint: ' + endpointName + ' (' + endpointUrl + ') | Scene: ' + sid + ' | Distance: ' + Number(match.distance || 0) + ' | ΔDuration: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>'
-        + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
-        + (counts.length ? '<div class="scene-counts">' + counts.join(' | ') + '</div>' : '')
+        + '<div class="scene-meta">' + (card.studio || '') + (card.date ? (' | ' + card.date) : '') + '</div>'
+        + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
         + (details ? '<div class="scene-details">' + details + '</div>' : '')
+        + '<details class="scene-drawer"><summary>Details</summary><div class="scene-drawer-body">'
+        + ((card.resolutionX && card.resolutionY) ? ('<div>Dimensions: ' + card.resolutionX + ' x ' + card.resolutionY + '</div>') : '')
+        + (card.duration ? ('<div>Duration: ' + fmtDuration(card.duration) + '</div>') : '')
+        + ('<div>Distance: ' + Number(match.distance || 0) + '</div>')
+        + ('<div>Duration Delta: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>')
+        + (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
+        + '</div></details>'
         + '</div>';
     }
 
