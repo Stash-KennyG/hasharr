@@ -197,6 +197,35 @@ func TestHandleStashEndpointByIDVersion(t *testing.T) {
 	}
 }
 
+func TestHandleStashEndpointsCreateDefaultsPublicURL(t *testing.T) {
+	srv := newMockGraphQLServer(t)
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	cfg := filepath.Join(tmp, "endpoints.json")
+	store, err := stashconfig.NewStore(cfg)
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+	configStore = store
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/stash-endpoints", strings.NewReader(`{"name":"Primary","graphqlUrl":"`+srv.URL+`","apiKey":""}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handleStashEndpoints(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("unexpected status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out stashconfig.Endpoint
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	if out.PublicURL != out.GraphQLURL {
+		t.Fatalf("expected publicUrl fallback to graphqlUrl, got public=%q graphql=%q", out.PublicURL, out.GraphQLURL)
+	}
+}
+
 func TestHandlePHashMatchAllEndpointsDefaultOptions(t *testing.T) {
 	srv := newMockGraphQLServer(t)
 	defer srv.Close()
@@ -229,13 +258,19 @@ func TestHandlePHashMatchAllEndpointsDefaultOptions(t *testing.T) {
 	}
 
 	var out struct {
-		Lookups []map[string]any `json:"lookups"`
+		Lookups []struct {
+			EndpointURL string `json:"endpointUrl"`
+			PublicURL   string `json:"publicUrl"`
+		} `json:"lookups"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 	if len(out.Lookups) != 1 {
 		t.Fatalf("expected one lookup, got %d", len(out.Lookups))
+	}
+	if out.Lookups[0].PublicURL == "" || out.Lookups[0].PublicURL != out.Lookups[0].EndpointURL {
+		t.Fatalf("expected publicUrl fallback to endpointUrl, got %+v", out.Lookups[0])
 	}
 }
 

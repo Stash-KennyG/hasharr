@@ -16,6 +16,7 @@ type Endpoint struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	GraphQLURL      string    `json:"graphqlUrl"`
+	PublicURL       string    `json:"publicUrl"`
 	APIKey          string    `json:"apiKey,omitempty"`
 	Version         string    `json:"version"`
 	SceneCount      int       `json:"sceneCount"`
@@ -49,8 +50,12 @@ func (s *Store) List() []Endpoint {
 func (s *Store) Create(ctx context.Context, req Endpoint, client *http.Client) (Endpoint, error) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.GraphQLURL = strings.TrimSpace(req.GraphQLURL)
+	req.PublicURL = strings.TrimSpace(req.PublicURL)
 	if req.Name == "" || req.GraphQLURL == "" {
 		return Endpoint{}, fmt.Errorf("name and graphqlUrl are required")
+	}
+	if req.PublicURL == "" {
+		req.PublicURL = req.GraphQLURL
 	}
 
 	version, err := QueryVersion(ctx, client, req.GraphQLURL, req.APIKey)
@@ -73,6 +78,7 @@ func (s *Store) Create(ctx context.Context, req Endpoint, client *http.Client) (
 		ID:              fmt.Sprintf("%d", time.Now().UnixNano()),
 		Name:            req.Name,
 		GraphQLURL:      req.GraphQLURL,
+		PublicURL:       req.PublicURL,
 		APIKey:          req.APIKey,
 		Version:         version,
 		SceneCount:      withPhash,
@@ -87,8 +93,12 @@ func (s *Store) Create(ctx context.Context, req Endpoint, client *http.Client) (
 func (s *Store) Update(ctx context.Context, id string, req Endpoint, client *http.Client) (Endpoint, error) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.GraphQLURL = strings.TrimSpace(req.GraphQLURL)
+	req.PublicURL = strings.TrimSpace(req.PublicURL)
 	if req.Name == "" || req.GraphQLURL == "" {
 		return Endpoint{}, fmt.Errorf("name and graphqlUrl are required")
+	}
+	if req.PublicURL == "" {
+		req.PublicURL = req.GraphQLURL
 	}
 
 	version, err := QueryVersion(ctx, client, req.GraphQLURL, req.APIKey)
@@ -110,6 +120,7 @@ func (s *Store) Update(ctx context.Context, id string, req Endpoint, client *htt
 		if s.endpoints[i].ID == id {
 			s.endpoints[i].Name = req.Name
 			s.endpoints[i].GraphQLURL = req.GraphQLURL
+			s.endpoints[i].PublicURL = req.PublicURL
 			s.endpoints[i].APIKey = req.APIKey
 			s.endpoints[i].Version = version
 			s.endpoints[i].SceneCount = withPhash
@@ -209,7 +220,22 @@ func (s *Store) load() error {
 		s.endpoints = []Endpoint{}
 		return nil
 	}
-	return json.Unmarshal(data, &s.endpoints)
+	if err := json.Unmarshal(data, &s.endpoints); err != nil {
+		return err
+	}
+	changed := false
+	for i := range s.endpoints {
+		s.endpoints[i].GraphQLURL = strings.TrimSpace(s.endpoints[i].GraphQLURL)
+		s.endpoints[i].PublicURL = strings.TrimSpace(s.endpoints[i].PublicURL)
+		if s.endpoints[i].PublicURL == "" && s.endpoints[i].GraphQLURL != "" {
+			s.endpoints[i].PublicURL = s.endpoints[i].GraphQLURL
+			changed = true
+		}
+	}
+	if changed {
+		return s.saveLocked()
+	}
+	return nil
 }
 
 func (s *Store) saveLocked() error {

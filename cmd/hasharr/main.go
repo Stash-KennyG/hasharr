@@ -202,6 +202,7 @@ func handlePHashMatch(w http.ResponseWriter, r *http.Request) {
 	endpoints := configStore.List()
 	type endpointLookup struct {
 		EndpointURL  string                        `json:"endpointUrl"`
+		PublicURL    string                        `json:"publicUrl"`
 		EndpointName string                        `json:"endpointName"`
 		Matches      stashconfig.SceneLookupResult `json:"matches"`
 	}
@@ -247,6 +248,7 @@ func handlePHashMatch(w http.ResponseWriter, r *http.Request) {
 		}
 		lookups = append(lookups, endpointLookup{
 			EndpointURL:  ep.GraphQLURL,
+			PublicURL:    ep.PublicURL,
 			EndpointName: ep.Name,
 			Matches:      lookup,
 		})
@@ -652,6 +654,8 @@ var configPageHTML = `<!doctype html>
           <input id="name" placeholder="PrimaryStash" />
           <label>GraphQL Url</label>
           <input id="graphqlUrl" placeholder="http://stash.local:9999/graphql" />
+          <label>Public Url (optional)</label>
+          <input id="publicUrl" placeholder="https://stash.example.com/graphql" />
           <label>Api Key (optional)</label>
           <input id="apiKey" placeholder="ApiKey..." />
           <div class="row">
@@ -700,7 +704,7 @@ var configPageHTML = `<!doctype html>
       <div class="browser-results">
         <div class="card">
           <table>
-            <thead><tr><th>Name</th><th>Size</th><th>Date Modified</th></tr></thead>
+            <thead><tr><th id="nameSortHead" title="Sort by name">Name</th><th id="sizeSortHead" title="Sort by size">Size</th><th id="modifiedSortHead" title="Sort by modified date">Date Modified</th></tr></thead>
             <tbody id="fileRows"></tbody>
           </table>
         </div>
@@ -724,6 +728,8 @@ var configPageHTML = `<!doctype html>
     let currentPath = '';
     let selectedEntry = null;
     let entries = [];
+    let sortKey = 'name';
+    let sortAsc = true;
     const el = (id) => document.getElementById(id);
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
     const showSpin = (on) => el('spinner').classList.toggle('show', !!on);
@@ -732,8 +738,8 @@ var configPageHTML = `<!doctype html>
     const versionTitle = (ep) => 'Version: ' + prettyVersion(ep.version);
     const countTitle = (ep) => Number(ep.phashPercent||0).toFixed(2) + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
 
-    function clearForm(){ el('name').value=''; el('graphqlUrl').value=''; el('apiKey').value=''; selectedId=null; el('formTitle').textContent='Add Endpoint'; renderList(); }
-    function fillForm(ep){ el('name').value=ep.name; el('graphqlUrl').value=ep.graphqlUrl; el('apiKey').value=ep.apiKey||''; selectedId=ep.id; el('formTitle').textContent='Edit Endpoint'; renderList(); }
+    function clearForm(){ el('name').value=''; el('graphqlUrl').value=''; el('publicUrl').value=''; el('apiKey').value=''; selectedId=null; el('formTitle').textContent='Add Endpoint'; renderList(); }
+    function fillForm(ep){ el('name').value=ep.name; el('graphqlUrl').value=ep.graphqlUrl; el('publicUrl').value=ep.publicUrl||''; el('apiKey').value=ep.apiKey||''; selectedId=ep.id; el('formTitle').textContent='Edit Endpoint'; renderList(); }
 
     async function loadEndpoints(){
       status('Refreshing endpoint metrics...');
@@ -792,7 +798,7 @@ var configPageHTML = `<!doctype html>
 
     async function saveEndpoint(){
       status('Validating endpoint...');
-      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), apiKey:el('apiKey').value.trim() };
+      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), publicUrl:el('publicUrl').value.trim(), apiKey:el('apiKey').value.trim() };
       if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
       const url = selectedId ? '/v1/stash-endpoints/' + selectedId : '/v1/stash-endpoints';
       const method = selectedId ? 'PUT' : 'POST';
@@ -806,7 +812,7 @@ var configPageHTML = `<!doctype html>
 
     async function testEndpoint(){
       status('Testing endpoint...');
-      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), apiKey:el('apiKey').value.trim() };
+      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), publicUrl:el('publicUrl').value.trim(), apiKey:el('apiKey').value.trim() };
       if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
       const res = await fetch('/v1/stash-endpoints-test',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       const out = await res.json();
@@ -869,7 +875,13 @@ var configPageHTML = `<!doctype html>
       return out;
     }
 
-    function renderSceneCard(card, endpointName, endpointUrl, match){
+    function sceneURL(publicUrl, sceneId){
+      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
+      if (!base || !sceneId) return '';
+      return base + '/scenes/' + encodeURIComponent(sceneId);
+    }
+
+    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
       const perf = (card.performers || []).map(p =>
         '<span class="pill ' + genderClass(p.gender) + '">' + p.name + '</span>'
       ).join('');
@@ -879,9 +891,13 @@ var configPageHTML = `<!doctype html>
       if (Number(card.markerCount || 0) > 0) counts.push('Markers: ' + Number(card.markerCount));
       if (Number(card.fileCount || 0) > 1) counts.push('Files: ' + Number(card.fileCount));
       const details = String(card.details || '').trim();
+      const sid = card.id || match.id || '';
+      const url = sceneURL(publicUrl || endpointUrl, sid);
+      const title = card.title || match.title || '(untitled)';
+      const titleHTML = url ? ('<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">' + title + '</a>') : title;
       return '<div class="scene-card">'
-        + '<div class="scene-title">' + (card.title || match.title || '(untitled)') + '</div>'
-        + '<div class="scene-meta">Endpoint: ' + endpointName + ' (' + endpointUrl + ') | Scene: ' + (card.id || match.id || '') + ' | Distance: ' + Number(match.distance || 0) + ' | ΔDuration: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>'
+        + '<div class="scene-title">' + titleHTML + '</div>'
+        + '<div class="scene-meta">Endpoint: ' + endpointName + ' (' + endpointUrl + ') | Scene: ' + sid + ' | Distance: ' + Number(match.distance || 0) + ' | ΔDuration: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + (counts.length ? '<div class="scene-counts">' + counts.join(' | ') + '</div>' : '')
         + (details ? '<div class="scene-details">' + details + '</div>' : '')
@@ -898,7 +914,12 @@ var configPageHTML = `<!doctype html>
         const rows = [...(m.exactMatches || []), ...(m.partialMatches || [])];
         for (const row of rows){
           if (!row || !row.id) continue;
-          tasks.push({ endpointName: l.endpointName || '', endpointUrl: l.endpointUrl || '', match: row });
+          tasks.push({
+            endpointName: l.endpointName || '',
+            endpointUrl: l.endpointUrl || '',
+            publicUrl: l.publicUrl || l.endpointUrl || '',
+            match: row,
+          });
         }
       }
       if (!tasks.length) {
@@ -908,7 +929,7 @@ var configPageHTML = `<!doctype html>
       const cards = await Promise.all(tasks.map(async (t) => {
         try {
           const card = await fetchSceneCard(t.endpointUrl, t.match.id);
-          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.match);
+          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.publicUrl, t.match);
         } catch (e) {
           return '<div class="scene-card"><div class="scene-title">' + (t.match.title || t.match.id) + '</div><div class="scene-meta">Failed to fetch scene card: ' + String(e.message || e) + '</div></div>';
         }
@@ -929,7 +950,20 @@ var configPageHTML = `<!doctype html>
 
     function renderEntries(){
       const tbody = el('fileRows'); tbody.innerHTML='';
-      for (const ent of entries){
+      const sorted = [...entries].sort((a, b) => {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        let cmp = 0;
+        if (sortKey === 'size') {
+          cmp = Number(a.size || 0) - Number(b.size || 0);
+        } else if (sortKey === 'modified') {
+          cmp = String(a.modified || '').localeCompare(String(b.modified || ''));
+        } else {
+          cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+        }
+        if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+        return sortAsc ? cmp : -cmp;
+      });
+      for (const ent of sorted){
         const tr = document.createElement('tr');
         if (selectedEntry && selectedEntry.path === ent.path) tr.classList.add('selected');
         tr.innerHTML = '<td>' + (ent.isDir ? '📁 ' : '📄 ') + ent.name + '</td><td>' + (ent.isDir ? '' : fmtCount(ent.size)) + '</td><td>' + ent.modified + '</td>';
@@ -937,6 +971,22 @@ var configPageHTML = `<!doctype html>
         tr.ondblclick = async () => { if (ent.isDir) await loadDir(ent.path); else { selectedEntry = ent; updateCurl(); await runHash(); } };
         tbody.appendChild(tr);
       }
+    }
+
+    function updateSortHeadLabels(){
+      const n = el('nameSortHead');
+      const s = el('sizeSortHead');
+      const m = el('modifiedSortHead');
+      n.textContent = 'Name' + (sortKey === 'name' ? (sortAsc ? ' ▲' : ' ▼') : '');
+      s.textContent = 'Size' + (sortKey === 'size' ? (sortAsc ? ' ▲' : ' ▼') : '');
+      m.textContent = 'Date Modified' + (sortKey === 'modified' ? (sortAsc ? ' ▲' : ' ▼') : '');
+    }
+
+    function setSort(key){
+      if (sortKey === key) sortAsc = !sortAsc;
+      else { sortKey = key; sortAsc = true; }
+      updateSortHeadLabels();
+      renderEntries();
     }
 
     async function runHash(){
@@ -976,10 +1026,14 @@ var configPageHTML = `<!doctype html>
     el('deleteBtn').onclick = deleteEndpoint;
     el('hashBtn').onclick = runHash;
     el('upBtn').onclick = upFolder;
+    el('nameSortHead').onclick = () => setSort('name');
+    el('sizeSortHead').onclick = () => setSort('size');
+    el('modifiedSortHead').onclick = () => setSort('modified');
     el('rawToggle').onclick = () => el('rawDrawer').classList.toggle('collapsed');
     el('stashIndex').onchange = updateCurl;
     el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
+    updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
     Promise.all([loadEndpoints(), loadDir('')]).catch(err => { status(String(err),'err'); });
