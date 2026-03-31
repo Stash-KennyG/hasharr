@@ -4,3 +4,5 @@ data/
 *.local.json
 resources/favicon.ico
 resources/favicon-32.png
+__pycache__/
+*.pyc

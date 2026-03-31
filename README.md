@@ -21,6 +21,7 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
   - shows name, size, and modified date
   - supports up-folder navigation, single-select highlight, and double-click actions
   - generates curl command for selected file
+  - provides `Download SAB Script` to export a preconfigured post-process script using current configurator values (`stashIndex`, `maxTimeDelta`, `maxDistance`)
   - runs hash on double-click or `Hash` button
   - displays a working spinner and JSON results panel
 - Uses `resources/logo.png` for branding
@@ -70,8 +71,10 @@ Response:
   "phash": "7f007f20ff20ff00",
   "resolution_x": 1280,
   "resolution_y": 720,
+  "dimensions": "1280 x 720",
   "duration": 123.45,
-  "bitrate": 1450.2
+  "bitrate": 1450.2,
+  "frame_rate": 23.98
 }
 ```
 
@@ -129,6 +132,48 @@ Update and revalidate an endpoint.
 ### `DELETE /v1/stash-endpoints/{id}`
 
 Delete an endpoint.
+
+### `GET /v1/sab-postprocess.py`
+
+Downloads a SABnzbd post-process Python script (`sab_postProcess.py`) with defaults baked in from query params:
+
+- `stashIndex` (default `-1`)
+- `maxTimeDelta` (default `1`, clamped to `0..15`)
+- `maxDistance` (default `0`, clamped to `0..8`)
+
+Example:
+
+```bash
+curl -L "http://localhost:9995/v1/sab-postprocess.py?stashIndex=-1&maxTimeDelta=1&maxDistance=0" -o sab_postProcess.py
+chmod +x sab_postProcess.py
+```
+
+## SABnzbd post-process script
+
+Script path in this repo:
+
+- `resources/sab_postProcess.py`
+
+Behavior summary:
+
+- scans completed job folder recursively for video files
+- skips files containing `.sample`
+- when exactly 2 candidate videos exist, skips `.1.<ext>` split-part style files
+- exact match sweep via `/v1/phash-match` using configured defaults
+  - deletes source file if exact matches exist and source is not better
+  - prefixes filename with quality reasons if source is better:
+    - `L` = larger resolution
+    - `D` = longer duration
+    - `F` = higher FPS (FPS normalized with cap at 30)
+- optimistic sweep when no exact match:
+  - `maxDistance=8`, `maxTimeDelta=min(15, duration*0.02)`
+  - prefixes with `[P]` if potential match found
+
+Exit codes:
+
+- `0`: normal completion
+- `1`: all eligible videos deleted (script also attempts to remove job folder)
+- `2`: potential-only outcomes
 
 ## Run locally
 

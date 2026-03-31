@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,6 +73,7 @@ func main() {
 	mux.HandleFunc("/favicon-source.png", handleFaviconSource)
 	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/app.css", handleAppCSS)
+	mux.HandleFunc("/v1/sab-postprocess.py", handleSABPostProcessScript)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
 	mux.HandleFunc("/v1/phash-match", handlePHashMatch)
@@ -122,6 +124,70 @@ func handleLogo(w http.ResponseWriter, r *http.Request) {
 
 func handleAppCSS(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, resourcesDir+"/app.css")
+}
+
+func handleSABPostProcessScript(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	stashIndex := clampIntQuery(r.URL.Query().Get("stashIndex"), -1, -1, 99999)
+	maxTimeDelta := clampFloatQuery(r.URL.Query().Get("maxTimeDelta"), 1, 0, 15)
+	maxDistance := clampIntQuery(r.URL.Query().Get("maxDistance"), 0, 0, 8)
+
+	scriptPath := filepath.Join(resourcesDir, "sab_postProcess.py")
+	b, err := os.ReadFile(scriptPath)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to read script template")
+		return
+	}
+	src := string(b)
+	cfg := "\n# Download-time defaults from hasharr configurator UI.\n" +
+		"DEFAULT_STASH_INDEX = " + strconv.Itoa(stashIndex) + "\n" +
+		"DEFAULT_MAX_TIME_DELTA = " + strconv.FormatFloat(maxTimeDelta, 'f', 3, 64) + "\n" +
+		"DEFAULT_MAX_DISTANCE = " + strconv.Itoa(maxDistance) + "\n\n"
+
+	out := src
+	if strings.HasPrefix(src, "#!") {
+		if i := strings.Index(src, "\n"); i >= 0 {
+			out = src[:i+1] + cfg + src[i+1:]
+		} else {
+			out = src + cfg
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/x-python; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="sab_postProcess.py"`)
+	_, _ = io.WriteString(w, out)
+}
+
+func clampIntQuery(raw string, fallback, min, max int) int {
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return fallback
+	}
+	if n < min {
+		return min
+	}
+	if n > max {
+		return max
+	}
+	return n
+}
+
+func clampFloatQuery(raw string, fallback, min, max float64) float64 {
+	f, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return fallback
+	}
+	if f < min {
+		return min
+	}
+	if f > max {
+		return max
+	}
+	return f
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -620,6 +686,7 @@ var configPageHTML = `<!doctype html>
       <div class="curlbar">
         <div class="sub">generated curl command</div>
         <div class="mono" id="curlCmd">Select a file to generate curl command.</div>
+        <button id="downloadSabBtn">Download SAB Script</button>
       </div>
       <div class="pathbar">
         <div class="sub">path</div>
@@ -773,6 +840,17 @@ var configPageHTML = `<!doctype html>
       const baseUrl = window.location.origin || 'http://localhost:9995';
       const cmd = 'curl -s -X POST ' + baseUrl + '/v1/phash-match -H "Content-Type: application/json" --data \'' + JSON.stringify(payload) + '\'';
       el('curlCmd').textContent = cmd;
+    }
+
+    function sabScriptURL(){
+      const stashIndex = Number(el('stashIndex').value || -1);
+      const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
+      const maxDistance = Number(el('maxDistance').value || 0);
+      const q = new URLSearchParams();
+      q.set('stashIndex', String(stashIndex));
+      q.set('maxTimeDelta', String(maxTimeDelta));
+      q.set('maxDistance', String(maxDistance));
+      return '/v1/sab-postprocess.py?' + q.toString();
     }
 
     function clampInt(v, fallback, min, max){
@@ -1115,6 +1193,7 @@ var configPageHTML = `<!doctype html>
     el('stashIndex').onchange = updateCurl;
     el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
+    el('downloadSabBtn').onclick = () => { window.location.href = sabScriptURL(); };
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
