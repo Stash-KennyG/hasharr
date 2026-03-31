@@ -1,0 +1,4 @@
+/config/
+config.json
+data/
+*.local.json

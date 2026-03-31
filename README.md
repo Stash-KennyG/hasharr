@@ -4,6 +4,15 @@
 
 `hasharr` is a container-friendly web service that computes a Stash-style video perceptual hash (`phash`) and basic media metadata from a local file path.
 
+## Root Configuration UI
+
+Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
+
+- Supports CRUD for multiple endpoints
+- Stores entries in a local JSON file (default: `/config/config.json`)
+- Validates endpoint on add/update by querying GraphQL for Stash version
+- Displays entries as `Name vVersion` (example: `PrimaryStash v0.31.0`)
+
 ## API
 
 ### `POST /v1/phash`
@@ -39,6 +48,32 @@ Returns:
 {"status":"ok"}
 ```
 
+### `GET /v1/stash-endpoints`
+
+Returns configured endpoints.
+
+### `POST /v1/stash-endpoints`
+
+Create and validate a new endpoint.
+
+Body:
+
+```json
+{
+  "name": "PrimaryStash",
+  "graphqlUrl": "http://stash.local:9999/graphql",
+  "apiKey": "optional"
+}
+```
+
+### `PUT /v1/stash-endpoints/{id}`
+
+Update and revalidate an endpoint.
+
+### `DELETE /v1/stash-endpoints/{id}`
+
+Delete an endpoint.
+
 ## Run locally
 
 Dependencies:
@@ -67,6 +102,7 @@ Pull and run the latest image:
 ```bash
 docker pull ghcr.io/stash-kennyg/hasharr:latest
 docker run --rm -p 9995:9995 \
+  -v /path/to/hasharr-config:/config \
   -v /downloaded:/downloaded:ro \
   ghcr.io/stash-kennyg/hasharr:latest
 ```
@@ -96,6 +132,7 @@ Run:
 
 ```bash
 docker run --rm -p 9995:9995 \
+  -v /path/to/hasharr-config:/config \
   -v /downloaded:/downloaded:ro \
   hasharr:dev
 ```

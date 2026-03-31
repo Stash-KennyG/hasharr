@@ -13,7 +13,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+RUN mkdir -p /config
 COPY --from=build /out/hasharr /usr/local/bin/hasharr
 
 EXPOSE 9995
+VOLUME ["/config"]
 ENTRYPOINT ["/usr/local/bin/hasharr"]
