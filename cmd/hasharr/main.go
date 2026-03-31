@@ -993,7 +993,6 @@ var configPageHTML = `<!doctype html>
         marker: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z"></path></svg>',
         ocount: '<svg viewBox="0 0 36 36" aria-hidden="true"><path d="M22.855.758L7.875 7.024l12.537 9.733c2.633 2.224 6.377 2.937 9.77 1.518c4.826-2.018 7.096-7.576 5.072-12.413C33.232 1.024 27.68-1.261 22.855.758zm-9.962 17.924L2.05 10.284L.137 23.529a7.993 7.993 0 0 0 2.958 7.803a8.001 8.001 0 0 0 9.798-12.65zm15.339 7.015l-8.156-4.69l-.033 9.223c-.088 2 .904 3.98 2.75 5.041a5.462 5.462 0 0 0 7.479-2.051c1.499-2.644.589-6.013-2.04-7.523z"></path></svg>',
         stash: '<svg viewBox="0 0 640 512" aria-hidden="true"><path d="M58.9 42.1c3-6.1 9.6-9.6 16.3-8.7L320 64 564.8 33.4c6.7-.8 13.3 2.7 16.3 8.7l41.7 83.4c9 17.9-.6 39.6-19.8 45.1L439.6 217.3c-13.9 4-28.8-1.9-36.2-14.3L320 64 236.6 203c-7.4 12.4-22.3 18.3-36.2 14.3L37.1 170.6c-19.3-5.5-28.8-27.2-19.8-45.1L58.9 42.1zM321.1 128l54.9 91.4c14.9 24.8 44.6 36.6 72.5 28.6L576 211.6v167c0 22-15 41.2-36.4 46.6l-204.1 51c-10.2 2.6-20.9 2.6-31 0l-204.1-51C79 419.7 64 400.5 64 378.5v-167L191.6 248c27.8 8 57.6-3.8 72.5-28.6L318.9 128h2.2z"></path></svg>',
-        groups: '<svg viewBox="0 0 640 512" aria-hidden="true"><path d="M96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM0 482.3C0 383.8 79.8 304 178.3 304h91.4C368.2 304 448 383.8 448 482.3C448 498.7 434.7 512 418.3 512H29.7C13.3 512 0 498.7 0 482.3zM448 256a96 96 0 1 0 0-192 96 96 0 1 0 0 192zm0 48c-6.9 0-13.7 .4-20.4 1.2c24.4 26.3 40.8 59.9 45.2 97.2h138.2c16 0 29-13 29-29C640 334.5 569.5 304 512 304H448z"></path></svg>',
         files: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0z"></path></svg>'
       };
       const perf = (card.performers || []).map(p =>
@@ -1003,7 +1002,7 @@ var configPageHTML = `<!doctype html>
       if (Number(card.tagCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.tag + '<span>' + Number(card.tagCount) + '</span></span>');
       if (Number(card.performerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.user + '<span>' + Number(card.performerCount) + '</span></span>');
       if (Number(card.markerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.marker + '<span>' + Number(card.markerCount) + '</span></span>');
-      if (Number(card.groupCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.groups + '<span>' + Number(card.groupCount) + '</span></span>');
+      if (Number(card.groupCount || 0) > 0) icons.push('<span class="scene-ico"><span aria-hidden="true">👥</span><span>' + Number(card.groupCount) + '</span></span>');
       if (Number(card.oCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.ocount + '<span>' + Number(card.oCount) + '</span></span>');
       if (Number(card.stashIdCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.stash + '<span>' + Number(card.stashIdCount) + '</span></span>');
       if (Number(card.fileCount || 0) > 1) icons.push('<span class="scene-ico">' + iconSVG.files + '<span>' + Number(card.fileCount) + '</span></span>');
