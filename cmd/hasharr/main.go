@@ -614,13 +614,15 @@ var configPageHTML = `<!doctype html>
     .collapsed .raw-body { display:none; }
     .cards { display:flex; flex-direction:column; gap:10px; }
     .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#212f3f; }
-    .scene-media { position:relative; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#111520; min-height:190px; }
+    .scene-media { position:relative; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:#111520; min-height:190px; }
     .scene-shot { width:100%; display:block; object-fit:cover; max-height:300px; background:#0f131c; }
     .scene-preview { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .12s ease; pointer-events:none; }
     .scene-media:hover .scene-preview { opacity:1; }
-    .studio-logo { position:absolute; top:8px; right:8px; width:110px; height:62px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:#0f131c; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
-    .studio-logo img { width:100%; height:100%; object-fit:cover; }
+    .studio-logo { position:absolute; top:10px; right:10px; width:32%; max-width:180px; min-width:110px; aspect-ratio:16/9; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(15,19,28,.72); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
+    .studio-logo img { width:100%; height:100%; object-fit:contain; padding:4px; }
     .scene-overlay { position:absolute; right:8px; bottom:8px; font-size:12px; color:#d9dde3; background:rgba(10,13,18,.65); padding:2px 8px; border-radius:999px; }
+    .scene-overlay .res { font-weight:700; }
+    .scene-overlay .dur { font-weight:400; opacity:.95; }
     .scene-progress { height:6px; background:#2f445a; border-top:1px solid #30445a; }
     .scene-progress > div { height:100%; width:0%; background:#2b9bd6; transition:width .08s linear; }
     .scene-title { font-size:42px; margin:6px 0 4px; color:#f2f4f7; line-height:1; font-weight:500; }
@@ -958,7 +960,7 @@ var configPageHTML = `<!doctype html>
         + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
         + (preview ? '<video class="scene-preview" loop preload="none" muted playsinline src="' + preview + '"></video>' : '')
         + (studioLogo ? '<div class="studio-logo"><img loading="lazy" src="' + studioLogo + '" alt="Studio logo" onerror="this.parentElement.textContent=\'Studio\';" /></div>' : '<div class="studio-logo">Studio</div>')
-        + '<div class="scene-overlay">' + ((card.resolutionX && card.resolutionY) ? (card.resolutionY + 'p') : '') + ' ' + (card.duration ? fmtDuration(card.duration) : '') + '</div>'
+        + '<div class="scene-overlay"><span class="res">' + ((card.resolutionX && card.resolutionY) ? (card.resolutionY + 'p') : '') + '</span> <span class="dur">' + (card.duration ? fmtDuration(card.duration) : '') + '</span></div>'
         + '<div class="scene-progress"><div></div></div>'
         + '</div>'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
