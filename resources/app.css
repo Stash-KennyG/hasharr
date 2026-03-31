@@ -90,8 +90,8 @@
     .scene-drawer summary { list-style:none; cursor:pointer; padding:8px 10px; color:#f2f4f7; font-weight:600; }
     .scene-drawer summary::-webkit-details-marker { display:none; }
     .scene-drawer-body { padding:10px 12px; border-top:1px solid #4a5b6e; display:grid; gap:6px; font-size:13px; color:#e7edf4; line-height:1.35; }
-    .kv { display:grid; grid-template-columns:170px 1fr; gap:10px; align-items:start; }
-    .kv .k { font-weight:700; color:#f0f5fb; }
+    .kv { display:grid; grid-template-columns:150px 1fr; gap:10px; align-items:start; }
+    .kv .k { font-weight:700; color:#dbe5ef; }
     .kv .v { color:#dbe5ef; overflow-wrap:break-word; word-break:normal; }
     .scene-file-list { margin-top:8px; border:1px solid #495a6c; border-radius:6px; overflow:hidden; }
     .scene-file { border-top:1px solid #2b3a4c; }
