@@ -613,7 +613,7 @@ var configPageHTML = `<!doctype html>
     .raw-body { border:1px solid var(--border); border-radius:8px; padding:8px; background:#161b26; }
     .collapsed .raw-body { display:none; }
     .cards { display:flex; flex-direction:column; gap:10px; }
-    .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#1a1f2c; }
+    .scene-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:#212f3f; }
     .scene-media { position:relative; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#111520; min-height:190px; }
     .scene-shot { width:100%; display:block; object-fit:cover; max-height:300px; background:#0f131c; }
     .scene-preview { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .12s ease; pointer-events:none; }
@@ -621,12 +621,17 @@ var configPageHTML = `<!doctype html>
     .studio-logo { position:absolute; top:8px; right:8px; width:110px; height:62px; border:1px solid var(--border); border-radius:6px; overflow:hidden; background:#0f131c; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; }
     .studio-logo img { width:100%; height:100%; object-fit:cover; }
     .scene-overlay { position:absolute; right:8px; bottom:8px; font-size:12px; color:#d9dde3; background:rgba(10,13,18,.65); padding:2px 8px; border-radius:999px; }
-    .scene-title { font-size:28px; margin:10px 0 6px; color:#ff8a2a; line-height:1; }
-    .scene-meta, .scene-perfs, .scene-counts, .scene-details { color:var(--muted); font-size:12px; margin-top:6px; }
+    .scene-progress { height:6px; background:#2f445a; border-top:1px solid #30445a; }
+    .scene-progress > div { height:100%; width:0%; background:#2b9bd6; transition:width .08s linear; }
+    .scene-title { font-size:42px; margin:6px 0 4px; color:#f2f4f7; line-height:1; font-weight:500; }
+    .scene-meta, .scene-perfs, .scene-counts, .scene-details { color:#d7dee7; font-size:12px; margin-top:6px; }
+    .scene-perfs { margin-top:10px; }
     .scene-icons { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
-    .scene-ico { border:1px solid var(--border); border-radius:999px; padding:2px 8px; font-size:12px; color:#ff8a2a; }
+    .scene-ico { border:1px solid #4e6176; border-radius:999px; padding:3px 9px; font-size:15px; color:#e4e8ee; display:inline-flex; align-items:center; gap:6px; line-height:1; }
+    .scene-ico svg { width:16px; height:16px; display:block; fill:currentColor; }
+    .scene-footer { display:flex; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid #2e4156; color:#f2f4f7; font-size:16px; }
     .scene-drawer { margin-top:8px; border:1px solid var(--border); border-radius:8px; background:#141a25; }
-    .scene-drawer summary { list-style:none; cursor:pointer; padding:8px 10px; color:#ff8a2a; font-weight:600; }
+    .scene-drawer summary { list-style:none; cursor:pointer; padding:8px 10px; color:#ffb15f; font-weight:600; }
     .scene-drawer summary::-webkit-details-marker { display:none; }
     .scene-drawer-body { padding:8px 10px; border-top:1px solid var(--border); display:grid; gap:4px; font-size:12px; color:var(--muted); }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; margin-bottom:6px; font-size:12px; }
@@ -922,17 +927,24 @@ var configPageHTML = `<!doctype html>
     }
 
     function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
+      const iconSVG = {
+        tag: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M0 80L0 229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7L48 32C21.5 32 0 53.5 0 80zm112 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"></path></svg>',
+        user: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"></path></svg>',
+        marker: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z"></path></svg>',
+        ocount: '<svg viewBox="0 0 36 36" aria-hidden="true"><path d="M22.855.758L7.875 7.024l12.537 9.733c2.633 2.224 6.377 2.937 9.77 1.518c4.826-2.018 7.096-7.576 5.072-12.413C33.232 1.024 27.68-1.261 22.855.758zm-9.962 17.924L2.05 10.284L.137 23.529a7.993 7.993 0 0 0 2.958 7.803a8.001 8.001 0 0 0 9.798-12.65zm15.339 7.015l-8.156-4.69l-.033 9.223c-.088 2 .904 3.98 2.75 5.041a5.462 5.462 0 0 0 7.479-2.051c1.499-2.644.589-6.013-2.04-7.523z"></path></svg>',
+        stash: '<svg viewBox="0 0 640 512" aria-hidden="true"><path d="M58.9 42.1c3-6.1 9.6-9.6 16.3-8.7L320 64 564.8 33.4c6.7-.8 13.3 2.7 16.3 8.7l41.7 83.4c9 17.9-.6 39.6-19.8 45.1L439.6 217.3c-13.9 4-28.8-1.9-36.2-14.3L320 64 236.6 203c-7.4 12.4-22.3 18.3-36.2 14.3L37.1 170.6c-19.3-5.5-28.8-27.2-19.8-45.1L58.9 42.1zM321.1 128l54.9 91.4c14.9 24.8 44.6 36.6 72.5 28.6L576 211.6v167c0 22-15 41.2-36.4 46.6l-204.1 51c-10.2 2.6-20.9 2.6-31 0l-204.1-51C79 419.7 64 400.5 64 378.5v-167L191.6 248c27.8 8 57.6-3.8 72.5-28.6L318.9 128h2.2z"></path></svg>',
+        files: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0z"></path></svg>'
+      };
       const perf = (card.performers || []).map(p =>
         '<span class="pill ' + genderClass(p.gender) + '">' + p.name + '</span>'
       ).join('');
       const icons = [];
-      if (Number(card.tagCount || 0) > 0) icons.push('<span class="scene-ico">🏷 ' + Number(card.tagCount) + '</span>');
-      if (Number(card.performerCount || 0) > 0) icons.push('<span class="scene-ico">👤 ' + Number(card.performerCount) + '</span>');
-      if (Number(card.groupCount || 0) > 0) icons.push('<span class="scene-ico">📍 ' + Number(card.groupCount) + '</span>');
-      if (Number(card.oCount || 0) > 0) icons.push('<span class="scene-ico">💦 ' + Number(card.oCount) + '</span>');
-      if (Number(card.stashIdCount || 0) > 0) icons.push('<span class="scene-ico">📦 ' + Number(card.stashIdCount) + '</span>');
-      if (Number(card.markerCount || 0) > 0) icons.push('<span class="scene-ico">📑 ' + Number(card.markerCount) + '</span>');
-      if (Number(card.fileCount || 0) > 1) icons.push('<span class="scene-ico">🎞 ' + Number(card.fileCount) + '</span>');
+      if (Number(card.tagCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.tag + '<span>' + Number(card.tagCount) + '</span></span>');
+      if (Number(card.performerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.user + '<span>' + Number(card.performerCount) + '</span></span>');
+      if (Number(card.markerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.marker + '<span>' + Number(card.markerCount) + '</span></span>');
+      if (Number(card.oCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.ocount + '<span>' + Number(card.oCount) + '</span></span>');
+      if (Number(card.stashIdCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.stash + '<span>' + Number(card.stashIdCount) + '</span></span>');
+      if (Number(card.fileCount || 0) > 1) icons.push('<span class="scene-ico">' + iconSVG.files + '<span>' + Number(card.fileCount) + '</span></span>');
       const details = String(card.details || '').trim();
       const sid = card.id || match.id || '';
       const url = sceneURL(publicUrl || endpointUrl, sid);
@@ -944,24 +956,38 @@ var configPageHTML = `<!doctype html>
       return '<div class="scene-card">'
         + '<div class="scene-media">'
         + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
-        + (preview ? '<video class="scene-preview" loop preload="none" muted playsinline src="' + preview + '" onmouseenter="this.play&&this.play()" onmouseleave="this.pause&&this.pause()"></video>' : '')
+        + (preview ? '<video class="scene-preview" loop preload="none" muted playsinline src="' + preview + '"></video>' : '')
         + (studioLogo ? '<div class="studio-logo"><img loading="lazy" src="' + studioLogo + '" alt="Studio logo" onerror="this.parentElement.textContent=\'Studio\';" /></div>' : '<div class="studio-logo">Studio</div>')
         + '<div class="scene-overlay">' + ((card.resolutionX && card.resolutionY) ? (card.resolutionY + 'p') : '') + ' ' + (card.duration ? fmtDuration(card.duration) : '') + '</div>'
+        + '<div class="scene-progress"><div></div></div>'
         + '</div>'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
-        + '<div class="scene-meta">Endpoint: ' + endpointName + ' (' + endpointUrl + ') | Scene: ' + sid + ' | Distance: ' + Number(match.distance || 0) + ' | ΔDuration: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>'
-        + '<div class="scene-meta">' + (card.studio || '') + (card.date ? (' | ' + card.date) : '') + '</div>'
-        + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
-        + (details ? '<div class="scene-details">' + details + '</div>' : '')
         + '<details class="scene-drawer"><summary>Details</summary><div class="scene-drawer-body">'
+        + ('<div>Endpoint: ' + endpointName + ' (' + endpointUrl + ')</div>')
+        + ('<div>Scene: ' + sid + ' | Distance: ' + Number(match.distance || 0) + ' | ΔDuration: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>')
         + ((card.resolutionX && card.resolutionY) ? ('<div>Dimensions: ' + card.resolutionX + ' x ' + card.resolutionY + '</div>') : '')
         + (card.duration ? ('<div>Duration: ' + fmtDuration(card.duration) + '</div>') : '')
-        + ('<div>Distance: ' + Number(match.distance || 0) + '</div>')
-        + ('<div>Duration Delta: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>')
         + (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
         + '</div></details>'
+        + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + (card.date || '') + '</span></div>'
+        + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
+        + (details ? '<div class="scene-details">' + details + '</div>' : '')
         + '</div>';
+    }
+
+    function wireScenePreviews(){
+      document.querySelectorAll('.scene-card .scene-media').forEach((media) => {
+        const v = media.querySelector('.scene-preview');
+        const bar = media.querySelector('.scene-progress > div');
+        if (!v || !bar) return;
+        media.onmouseenter = async () => { try { await v.play(); } catch(_) {} };
+        media.onmouseleave = () => { v.pause(); };
+        v.ontimeupdate = () => {
+          const pct = (v.duration && v.duration > 0) ? Math.min(100, Math.max(0, (v.currentTime / v.duration) * 100)) : 0;
+          bar.style.width = pct.toFixed(2) + '%';
+        };
+      });
     }
 
     async function renderMatchCards(result){
@@ -995,6 +1021,7 @@ var configPageHTML = `<!doctype html>
         }
       }));
       host.innerHTML = cards.join('');
+      wireScenePreviews();
     }
 
     async function loadDir(path){
