@@ -11,7 +11,10 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 - Supports CRUD for multiple endpoints
 - Stores entries in a local JSON file (default: `/config/config.json`)
 - Validates endpoint on add/update by querying GraphQL for Stash version
-- Displays entries as `Name vVersion` (example: `PrimaryStash v0.31.0`)
+- Displays entries with right-aligned phash scene counts (example: `Primary Stash    84,123`)
+- Name tooltip shows version; count tooltip shows phash coverage (example: `92.00% phashes. 84,123 of 90,456 scenes`)
+- Refreshes scene/phash metrics on each page load
+- Refreshes endpoint version lazily when hovering endpoint name
 - Uses `resources/logo.png` for branding
 - Generates `favicon.ico` from `resources/favicon_source.png` during container build
 

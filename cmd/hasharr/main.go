@@ -154,6 +154,17 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 func handleStashEndpoints(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		if r.URL.Query().Get("refresh") == "1" {
+			ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+			defer cancel()
+			out, err := configStore.RefreshMetricsAll(ctx, &http.Client{Timeout: 20 * time.Second})
+			if err != nil {
+				writeErr(w, http.StatusBadGateway, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, out)
+			return
+		}
 		writeJSON(w, http.StatusOK, configStore.List())
 	case http.MethodPost:
 		var req stashconfig.Endpoint
@@ -206,9 +217,36 @@ func handleStashEndpointTest(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleStashEndpointByID(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/v1/stash-endpoints/")
+	path := strings.TrimPrefix(r.URL.Path, "/v1/stash-endpoints/")
+	if path == "" {
+		writeErr(w, http.StatusBadRequest, "missing endpoint id")
+		return
+	}
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	id := parts[0]
 	if id == "" {
 		writeErr(w, http.StatusBadRequest, "missing endpoint id")
+		return
+	}
+
+	// Lazy version refresh endpoint: GET /v1/stash-endpoints/{id}/version
+	if len(parts) == 2 && parts[1] == "version" {
+		if r.Method != http.MethodGet {
+			writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		ep, err := configStore.RefreshVersion(ctx, id, &http.Client{Timeout: 15 * time.Second})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"id":      ep.ID,
+			"name":    ep.Name,
+			"version": ep.Version,
+		})
 		return
 	}
 
@@ -275,6 +313,9 @@ var configPageHTML = `<!doctype html>
     ul { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
     li { border:1px solid var(--border); border-radius:8px; padding:10px; cursor:pointer; }
     li.active { border-color:var(--accent); background:#2c3340; }
+    .item { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .item-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .item-count { text-align:right; min-width:95px; font-variant-numeric: tabular-nums; color:var(--text); }
     .row { display:flex; gap:8px; }
     .grow { flex:1; }
     label { font-size:12px; color:var(--muted); display:block; margin:8px 0 6px; }
@@ -329,6 +370,7 @@ var configPageHTML = `<!doctype html>
   </div>
   <script>
     let endpoints = [];
+    const versionLoaded = new Set();
     let selectedId = null;
     const el = (id) => document.getElementById(id);
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
@@ -339,21 +381,57 @@ var configPageHTML = `<!doctype html>
       if (!s) return '';
       return (s.startsWith('v') || s.startsWith('V')) ? s : ('v' + s);
     }
-    function line(ep){ return ep.name + '  ' + prettyVersion(ep.version); }
+    function fmtCount(n){
+      const x = Number(n || 0);
+      return x.toLocaleString();
+    }
+    function versionTitle(ep){ return 'Version: ' + prettyVersion(ep.version); }
+    function countTitle(ep){
+      const pct = Number(ep.phashPercent || 0).toFixed(2);
+      return pct + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
+    }
     function renderList(){
       const list = el('list'); list.innerHTML='';
       for (const ep of endpoints){
         const li=document.createElement('li');
-        li.textContent=line(ep);
+        const row=document.createElement('div');
+        row.className='item';
+        const name=document.createElement('span');
+        name.className='item-name';
+        name.textContent=ep.name;
+        name.title=versionTitle(ep);
+        name.onmouseenter = async () => {
+          if (versionLoaded.has(ep.id)) return;
+          try {
+            const res = await fetch('/v1/stash-endpoints/' + ep.id + '/version');
+            const out = await res.json();
+            if (res.ok && out.version) {
+              versionLoaded.add(ep.id);
+              ep.version = out.version;
+              name.title = versionTitle(ep);
+            }
+          } catch (_) { /* best-effort tooltip refresh */ }
+        };
+        const count=document.createElement('span');
+        count.className='item-count';
+        count.textContent=fmtCount(ep.sceneCount);
+        count.title=countTitle(ep);
+        row.appendChild(name);
+        row.appendChild(count);
+        li.appendChild(row);
         if (ep.id===selectedId) li.classList.add('active');
         li.onclick=()=>fillForm(ep);
         list.appendChild(li);
       }
     }
     async function load(){
-      const res=await fetch('/v1/stash-endpoints');
-      endpoints=await res.json();
+      status('Refreshing endpoint metrics...');
+      const res=await fetch('/v1/stash-endpoints?refresh=1');
+      const out=await res.json();
+      if (!res.ok){ status(out.error || 'Refresh failed','err'); return; }
+      endpoints=out;
       renderList();
+      status('Metrics refreshed','ok');
     }
     async function save(){
       status('Validating endpoint...');
@@ -364,7 +442,7 @@ var configPageHTML = `<!doctype html>
       const res = await fetch(url,{ method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       const out = await res.json();
       if (!res.ok){ status(out.error || 'Save failed','err'); return; }
-      status('Saved and validated: ' + line(out), 'ok');
+      status('Saved and validated: ' + out.name + ' ' + prettyVersion(out.version), 'ok');
       await load();
       fillForm(out);
     }
