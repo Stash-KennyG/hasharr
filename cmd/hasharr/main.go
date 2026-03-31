@@ -18,7 +18,15 @@ import (
 )
 
 type requestBody struct {
-	Path string `json:"path"`
+	Path       string `json:"path"`
+	EndpointID string `json:"endpointId,omitempty"`
+}
+
+type phashMatchRequest struct {
+	FilePath     string   `json:"filePath"`
+	StashIndex   *int     `json:"stashIndex,omitempty"`
+	MaxTimeDelta *float64 `json:"maxTimeDelta,omitempty"`
+	MaxDistance  *int     `json:"maxDistance,omitempty"`
 }
 
 type errorResponse struct {
@@ -41,6 +49,7 @@ type fsListResponse struct {
 var computePHash = phash.Compute
 var configStore *stashconfig.Store
 var resourcesDir string
+var lookupMatches = stashconfig.LookupSceneMatchesWithOptions
 
 func main() {
 	addr := envOrDefault("HASHARR_ADDR", ":9995")
@@ -59,6 +68,7 @@ func main() {
 	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
+	mux.HandleFunc("/v1/phash-match", handlePHashMatch)
 	mux.HandleFunc("/v1/fs/list", handleFSList)
 	mux.HandleFunc("/v1/stash-endpoints", handleStashEndpoints)
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
@@ -133,6 +143,116 @@ func handlePHash(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func handlePHashMatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req phashMatchRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	req.FilePath = strings.TrimSpace(req.FilePath)
+	if req.FilePath == "" {
+		writeErr(w, http.StatusBadRequest, "filePath is required")
+		return
+	}
+	stashIndex := -1
+	if req.StashIndex != nil {
+		stashIndex = *req.StashIndex
+	}
+	maxTimeDelta := 1.0
+	if req.MaxTimeDelta != nil {
+		maxTimeDelta = *req.MaxTimeDelta
+	}
+	if maxTimeDelta < 0 {
+		maxTimeDelta = 0
+	}
+	if maxTimeDelta > 15 {
+		maxTimeDelta = 15
+	}
+	maxDistance := 0
+	if req.MaxDistance != nil {
+		maxDistance = *req.MaxDistance
+	}
+	if maxDistance < 0 {
+		maxDistance = 0
+	}
+	if maxDistance > 8 {
+		maxDistance = 8
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+	hashResult, err := computePHash(ctx, req.FilePath)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	endpoints := configStore.List()
+	type endpointLookup struct {
+		EndpointID   string                       `json:"endpointId"`
+		EndpointName string                       `json:"endpointName"`
+		Matches      stashconfig.SceneLookupResult `json:"matches"`
+	}
+	lookups := []endpointLookup{}
+
+	selected := endpoints
+	if stashIndex >= 0 {
+		if stashIndex >= len(endpoints) {
+			writeErr(w, http.StatusBadRequest, "stashIndex out of range")
+			return
+		}
+		selected = []stashconfig.Endpoint{endpoints[stashIndex]}
+	}
+
+	if len(selected) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"hash":          hashResult,
+			"lookups":       lookups,
+			"stashIndex":    stashIndex,
+			"maxTimeDelta":  maxTimeDelta,
+			"maxDistance":   maxDistance,
+			"lookupSkipped": "no endpoints configured",
+		})
+		return
+	}
+
+	for _, ep := range selected {
+		lctx, lcancel := context.WithTimeout(r.Context(), 40*time.Second)
+		lookup, err := lookupMatches(
+			lctx,
+			&http.Client{Timeout: 20 * time.Second},
+			ep.GraphQLURL,
+			ep.APIKey,
+			hashResult.PHash,
+			hashResult.Duration,
+			maxTimeDelta,
+			maxDistance,
+		)
+		lcancel()
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		lookups = append(lookups, endpointLookup{
+			EndpointID:   ep.ID,
+			EndpointName: ep.Name,
+			Matches:      lookup,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"hash":         hashResult,
+		"lookups":      lookups,
+		"stashIndex":   stashIndex,
+		"maxTimeDelta": maxTimeDelta,
+		"maxDistance":  maxDistance,
+	})
 }
 
 func handleFSList(w http.ResponseWriter, r *http.Request) {
@@ -446,7 +566,7 @@ var configPageHTML = `<!doctype html>
     <section class="panel" id="settingsDrawer">
       <div class="drawer-head" id="drawerToggle">
         <div>
-          <div class="drawer-title">Settings Area</div>
+          <div class="drawer-title">⚙️ Settings</div>
           <div class="sub">stash endpoints and diagnostics</div>
         </div>
         <div class="carrot">▾</div>
@@ -483,6 +603,20 @@ var configPageHTML = `<!doctype html>
     </section>
 
     <section class="workflow">
+      <div class="pathbar">
+        <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
+        <div class="pathrow">
+          <label style="margin:0;min-width:72px;">stashIndex</label>
+          <select id="stashIndex" style="flex:1; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+            <option value="-1">All</option>
+          </select>
+          <label style="margin:0;min-width:95px;">maxTimeDelta</label>
+          <input id="maxTimeDelta" type="number" min="0" max="15" step="0.1" value="1" style="width:90px;" />
+          <label style="margin:0;min-width:88px;">maxDistance</label>
+          <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
+          <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
+        </div>
+      </div>
       <div class="curlbar">
         <div class="sub">generated curl command</div>
         <div class="mono" id="curlCmd">Select a file to generate curl command.</div>
@@ -536,11 +670,30 @@ var configPageHTML = `<!doctype html>
       if (!res.ok){ status(out.error || 'Refresh failed','err'); return; }
       endpoints = out;
       renderList();
+      renderStashIndexOptions();
       status('Metrics refreshed','ok');
 
       const drawer = el('settingsDrawer');
       if (endpoints.length === 0) drawer.classList.remove('collapsed');
       else drawer.classList.add('collapsed');
+    }
+
+    function renderStashIndexOptions(){
+      const sel = el('stashIndex');
+      const prev = sel.value;
+      sel.innerHTML = '';
+      const all = document.createElement('option');
+      all.value = '-1';
+      all.textContent = 'All';
+      sel.appendChild(all);
+      endpoints.forEach((ep, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = ep.name;
+        sel.appendChild(opt);
+      });
+      sel.value = [...sel.options].some(o => o.value === prev) ? prev : '-1';
+      updateCurl();
     }
 
     function renderList(){
@@ -600,9 +753,18 @@ var configPageHTML = `<!doctype html>
     }
 
     function updateCurl(){
-      const cmd = selectedEntry && !selectedEntry.isDir
-        ? 'curl -s -X POST http://localhost:9995/v1/phash -H "Content-Type: text/plain" --data "\\"' + selectedEntry.path + '\\""'
-        : 'Select a file to generate curl command.';
+      if (!(selectedEntry && !selectedEntry.isDir)) {
+        el('curlCmd').textContent = 'Select a file to generate curl command.';
+        return;
+      }
+      const stashIndex = Number(el('stashIndex').value || -1);
+      const maxTimeDelta = Number(el('maxTimeDelta').value || 1);
+      const maxDistance = Number(el('maxDistance').value || 0);
+      const payload = { filePath: selectedEntry.path };
+      if (stashIndex !== -1) payload.stashIndex = stashIndex;
+      if (maxTimeDelta !== 1) payload.maxTimeDelta = maxTimeDelta;
+      if (maxDistance !== 0) payload.maxDistance = maxDistance;
+      const cmd = 'curl -s -X POST http://localhost:9995/v1/phash-match -H "Content-Type: application/json" --data \'' + JSON.stringify(payload) + '\'';
       el('curlCmd').textContent = cmd;
     }
 
@@ -634,7 +796,14 @@ var configPageHTML = `<!doctype html>
       if (!target){ el('resultJson').textContent = 'No file selected.'; return; }
       showSpin(true);
       el('resultJson').textContent = 'Working...';
-      const res = await fetch('/v1/phash', { method:'POST', headers:{'Content-Type':'text/plain'}, body: '"' + target + '"' });
+      const stashIndex = Number(el('stashIndex').value || -1);
+      const maxTimeDelta = Number(el('maxTimeDelta').value || 1);
+      const maxDistance = Number(el('maxDistance').value || 0);
+      const payload = { filePath: target };
+      if (stashIndex !== -1) payload.stashIndex = stashIndex;
+      if (maxTimeDelta !== 1) payload.maxTimeDelta = maxTimeDelta;
+      if (maxDistance !== 0) payload.maxDistance = maxDistance;
+      const res = await fetch('/v1/phash-match', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const out = await res.json().catch(()=>({error:'Invalid response'}));
       showSpin(false);
       el('resultJson').textContent = JSON.stringify(out, null, 2);
@@ -654,6 +823,9 @@ var configPageHTML = `<!doctype html>
     el('deleteBtn').onclick = deleteEndpoint;
     el('hashBtn').onclick = runHash;
     el('upBtn').onclick = upFolder;
+    el('stashIndex').onchange = updateCurl;
+    el('maxTimeDelta').oninput = updateCurl;
+    el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
     Promise.all([loadEndpoints(), loadDir('')]).catch(err => { status(String(err),'err'); });

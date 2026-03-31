@@ -134,6 +134,17 @@ func (s *Store) Delete(id string) error {
 	return fmt.Errorf("endpoint not found")
 }
 
+func (s *Store) GetByID(id string) (Endpoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, ep := range s.endpoints {
+		if ep.ID == id {
+			return ep, nil
+		}
+	}
+	return Endpoint{}, fmt.Errorf("endpoint not found")
+}
+
 func (s *Store) RefreshMetricsAll(ctx context.Context, client *http.Client) ([]Endpoint, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

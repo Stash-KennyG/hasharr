@@ -78,6 +78,24 @@ Response:
 - `duration`: seconds (2 decimals)
 - `bitrate`: kilobits/sec, computed as `(file_size_bytes * 8) / duration / 1000` (1 decimal)
 
+### `POST /v1/phash-match`
+
+Hashes a file and performs Stash lookup using a selected configured endpoint.
+
+Body:
+
+```json
+{
+  "path": "/downloaded/comp/man/vid/vid123.mp4",
+  "endpointId": "ep1"
+}
+```
+
+Lookup strategy:
+
+1. Exact: same phash + duration window
+2. Fallback (only when no exact): phash distance `<= 10` and duration within `min(1%, 15s)`
+
 ### `GET /healthz`
 
 Returns:

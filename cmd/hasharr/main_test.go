@@ -197,6 +197,93 @@ func TestHandleStashEndpointByIDVersion(t *testing.T) {
 	}
 }
 
+func TestHandlePHashMatchAllEndpointsDefaultOptions(t *testing.T) {
+	srv := newMockGraphQLServer(t)
+	defer srv.Close()
+	configStore = newStoreWithOneEndpoint(t, srv.URL)
+
+	origHash := computePHash
+	origLookup := lookupMatches
+	computePHash = func(_ context.Context, _ string) (*phash.Result, error) {
+		return &phash.Result{PHash: "f27fc7482aba5094", Duration: 60}, nil
+	}
+	lookupMatches = func(_ context.Context, _ *http.Client, graphqlURL, _apiKey, phashHex string, _duration float64, maxTimeDelta float64, maxDistance int) (stashconfig.SceneLookupResult, error) {
+		if graphqlURL == "" || phashHex == "" {
+			t.Fatalf("lookup received empty args: url=%q phash=%q", graphqlURL, phashHex)
+		}
+		if maxTimeDelta != 1 || maxDistance != 0 {
+			t.Fatalf("unexpected defaults: maxTimeDelta=%v maxDistance=%d", maxTimeDelta, maxDistance)
+		}
+		return stashconfig.SceneLookupResult{}, nil
+	}
+	t.Cleanup(func() {
+		computePHash = origHash
+		lookupMatches = origLookup
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/phash-match", strings.NewReader(`{"filePath":"/tmp/video.mp4"}`))
+	rec := httptest.NewRecorder()
+	handlePHashMatch(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var out struct {
+		Lookups []map[string]any `json:"lookups"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(out.Lookups) != 1 {
+		t.Fatalf("expected one lookup, got %d", len(out.Lookups))
+	}
+}
+
+func TestHandlePHashMatchWithCustomOptions(t *testing.T) {
+	srv := newMockGraphQLServer(t)
+	defer srv.Close()
+	configStore = newStoreWithOneEndpoint(t, srv.URL)
+
+	origHash := computePHash
+	origLookup := lookupMatches
+	computePHash = func(_ context.Context, _ string) (*phash.Result, error) {
+		return &phash.Result{PHash: "f27fc7482aba5094", Duration: 60}, nil
+	}
+	lookupMatches = func(_ context.Context, _ *http.Client, graphqlURL, _apiKey, phashHex string, _duration float64, maxTimeDelta float64, maxDistance int) (stashconfig.SceneLookupResult, error) {
+		if graphqlURL == "" || phashHex == "" {
+			t.Fatalf("lookup received empty args: url=%q phash=%q", graphqlURL, phashHex)
+		}
+		if maxTimeDelta != 3 || maxDistance != 4 {
+			t.Fatalf("unexpected options: maxTimeDelta=%v maxDistance=%d", maxTimeDelta, maxDistance)
+		}
+		return stashconfig.SceneLookupResult{
+			ExactMatches: []stashconfig.SceneMatch{{ID: "1", Title: "Exact Scene", Distance: 0}},
+		}, nil
+	}
+	t.Cleanup(func() {
+		computePHash = origHash
+		lookupMatches = origLookup
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/phash-match", strings.NewReader(`{"filePath":"/tmp/video.mp4","stashIndex":0,"maxTimeDelta":3,"maxDistance":4}`))
+	rec := httptest.NewRecorder()
+	handlePHashMatch(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Lookups []struct {
+			Matches stashconfig.SceneLookupResult `json:"matches"`
+		} `json:"lookups"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(out.Lookups) != 1 || len(out.Lookups[0].Matches.ExactMatches) != 1 {
+		t.Fatalf("expected one exact match, got %+v", out.Lookups)
+	}
+}
+
 func newStoreWithOneEndpoint(t *testing.T, graphqlURL string) *stashconfig.Store {
 	t.Helper()
 	tmp := t.TempDir()
