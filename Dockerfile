@@ -15,6 +15,7 @@ RUN apt-get update \
 WORKDIR /app
 RUN mkdir -p /config
 COPY --from=build /out/hasharr /usr/local/bin/hasharr
+COPY resources /app/resources
 
 EXPOSE 9995
 VOLUME ["/config"]

@@ -12,6 +12,7 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 - Stores entries in a local JSON file (default: `/config/config.json`)
 - Validates endpoint on add/update by querying GraphQL for Stash version
 - Displays entries as `Name vVersion` (example: `PrimaryStash v0.31.0`)
+- Uses `resources/logo.png` for branding and `resources/favicon.ico` as service favicon
 
 ## Easy Path (GHCR)
 
@@ -119,6 +120,7 @@ curl -s -X POST http://localhost:9995/v1/phash \
 ```
 
 Default listen address is `:9995` (override with `HASHARR_ADDR`).
+Static asset path defaults to `./resources` (override with `HASHARR_RESOURCES_DIR`).
 
 
 ## Docker
@@ -139,4 +141,10 @@ docker run --rm -p 9995:9995 \
 ```
 
 > The container must be able to read the target media path (bind mount your media directories).
+
+## Test Resources
+
+Integration test media fixtures are stored under `resources/`.
+
+- current fixture: `resources/tests__LosAlamosPhysicalSimulations_1m.mp4`
 

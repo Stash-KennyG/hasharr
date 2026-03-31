@@ -61,7 +61,7 @@ func TestComputeIntegration(t *testing.T) {
 func TestComputeIntegrationFixture(t *testing.T) {
 	requireMediaTools(t)
 
-	fixturePath, err := filepath.Abs(filepath.Join("..", "..", "tests", "tests__LosAlamosPhysicalSimulations_1m.mp4"))
+	fixturePath, err := filepath.Abs(filepath.Join("..", "..", "resources", "tests__LosAlamosPhysicalSimulations_1m.mp4"))
 	if err != nil {
 		t.Fatalf("resolve fixture path: %v", err)
 	}

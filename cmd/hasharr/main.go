@@ -25,10 +25,12 @@ type errorResponse struct {
 
 var computePHash = phash.Compute
 var configStore *stashconfig.Store
+var resourcesDir string
 
 func main() {
 	addr := envOrDefault("HASHARR_ADDR", ":9995")
 	configPath := envOrDefault("HASHARR_CONFIG_FILE", "/config/config.json")
+	resourcesDir = envOrDefault("HASHARR_RESOURCES_DIR", "./resources")
 	store, err := stashconfig.NewStore(configPath)
 	if err != nil {
 		log.Fatal(err)
@@ -37,6 +39,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
+	mux.HandleFunc("/favicon.ico", handleFavicon)
+	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
 	mux.HandleFunc("/v1/stash-endpoints", handleStashEndpoints)
@@ -62,6 +66,14 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = io.WriteString(w, configPageHTML)
+}
+
+func handleFavicon(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, resourcesDir+"/favicon.ico")
+}
+
+func handleLogo(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, resourcesDir+"/logo.png")
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -237,11 +249,15 @@ var configPageHTML = `<!doctype html>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>hasharr Configuration</title>
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <style>
     :root { --bg:#1b1f24; --panel:#232933; --text:#d9dde3; --muted:#8a94a6; --accent:#2b9bd6; --accent-hover:#2388bc; --accent-active:#1d759f; --ok:#2ecc71; --err:#ff5f56; --border:#313846; }
     * { box-sizing:border-box; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     body { margin:0; background:var(--bg); color:var(--text); }
     .wrap { max-width:1000px; margin:28px auto; padding:0 16px; display:grid; grid-template-columns:320px 1fr; gap:16px; }
+    .brand { max-width:1000px; margin:22px auto 0; padding:0 16px; display:flex; align-items:center; gap:12px; }
+    .brand img { width:36px; height:36px; border-radius:8px; }
+    .brand h1 { margin:0; font-size:22px; }
     .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
     h1 { margin:0 0 4px; font-size:20px; }
     h2 { margin:0 0 12px; font-size:14px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
@@ -263,6 +279,10 @@ var configPageHTML = `<!doctype html>
   </style>
 </head>
 <body>
+  <div class="brand">
+    <img src="/logo.png" alt="hasharr logo" />
+    <h1>hasharr</h1>
+  </div>
   <div class="wrap">
     <section class="card">
       <h1>Stash Endpoints</h1>
