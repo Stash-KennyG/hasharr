@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -138,7 +139,7 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
 }`, sceneArg)
 	raw, err := doQueryRaw(ctx, client, graphqlURL, apiKey, query)
 	if err != nil {
-		return SceneCard{}, err
+		return SceneCard{}, fmt.Errorf("query scene card sceneId=%q endpoint=%q: %w", sceneID, graphqlURL, err)
 	}
 	sceneRaw, ok := raw["findScene"]
 	if !ok {
@@ -241,7 +242,12 @@ func doQueryRaw(ctx context.Context, client *http.Client, graphqlURL, apiKey, qu
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("http %d", resp.StatusCode)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		body := strings.TrimSpace(string(b))
+		if body == "" {
+			return nil, fmt.Errorf("http %d from %s", resp.StatusCode, graphqlURL)
+		}
+		return nil, fmt.Errorf("http %d from %s: %s", resp.StatusCode, graphqlURL, body)
 	}
 
 	var out gqlResp
