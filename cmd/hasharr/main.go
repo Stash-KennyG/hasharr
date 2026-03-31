@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,6 +73,7 @@ func main() {
 	mux.HandleFunc("/favicon-source.png", handleFaviconSource)
 	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/app.css", handleAppCSS)
+	mux.HandleFunc("/v1/sab-postprocess.py", handleSABPostProcessScript)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
 	mux.HandleFunc("/v1/phash-match", handlePHashMatch)
@@ -122,6 +124,70 @@ func handleLogo(w http.ResponseWriter, r *http.Request) {
 
 func handleAppCSS(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, resourcesDir+"/app.css")
+}
+
+func handleSABPostProcessScript(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	stashIndex := clampIntQuery(r.URL.Query().Get("stashIndex"), -1, -1, 99999)
+	maxTimeDelta := clampFloatQuery(r.URL.Query().Get("maxTimeDelta"), 1, 0, 15)
+	maxDistance := clampIntQuery(r.URL.Query().Get("maxDistance"), 0, 0, 8)
+
+	scriptPath := filepath.Join(resourcesDir, "sab_postProcess.py")
+	b, err := os.ReadFile(scriptPath)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to read script template")
+		return
+	}
+	src := string(b)
+	cfg := "\n# Download-time defaults from hasharr configurator UI.\n" +
+		"DEFAULT_STASH_INDEX = " + strconv.Itoa(stashIndex) + "\n" +
+		"DEFAULT_MAX_TIME_DELTA = " + strconv.FormatFloat(maxTimeDelta, 'f', 3, 64) + "\n" +
+		"DEFAULT_MAX_DISTANCE = " + strconv.Itoa(maxDistance) + "\n\n"
+
+	out := src
+	if strings.HasPrefix(src, "#!") {
+		if i := strings.Index(src, "\n"); i >= 0 {
+			out = src[:i+1] + cfg + src[i+1:]
+		} else {
+			out = src + cfg
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/x-python; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="sab_postProcess.py"`)
+	_, _ = io.WriteString(w, out)
+}
+
+func clampIntQuery(raw string, fallback, min, max int) int {
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return fallback
+	}
+	if n < min {
+		return min
+	}
+	if n > max {
+		return max
+	}
+	return n
+}
+
+func clampFloatQuery(raw string, fallback, min, max float64) float64 {
+	f, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return fallback
+	}
+	if f < min {
+		return min
+	}
+	if f > max {
+		return max
+	}
+	return f
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -606,8 +672,8 @@ var configPageHTML = `<!doctype html>
       <div class="pathbar">
         <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
         <div class="pathrow">
-          <label style="margin:0;min-width:72px;">stashIndex</label>
-          <select id="stashIndex" style="flex:1; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+          <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
+          <select id="stashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
             <option value="-1">All</option>
           </select>
           <label style="margin:0;min-width:95px;">maxTimeDelta</label>
@@ -615,6 +681,7 @@ var configPageHTML = `<!doctype html>
           <label style="margin:0;min-width:88px;">maxDistance</label>
           <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
           <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
+          <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
         </div>
       </div>
       <div class="curlbar">
@@ -775,21 +842,23 @@ var configPageHTML = `<!doctype html>
       el('curlCmd').textContent = cmd;
     }
 
+    function sabScriptURL(){
+      const stashIndex = Number(el('stashIndex').value || -1);
+      const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
+      const maxDistance = Number(el('maxDistance').value || 0);
+      const q = new URLSearchParams();
+      q.set('stashIndex', String(stashIndex));
+      q.set('maxTimeDelta', String(maxTimeDelta));
+      q.set('maxDistance', String(maxDistance));
+      return '/v1/sab-postprocess.py?' + q.toString();
+    }
+
     function clampInt(v, fallback, min, max){
       const n = Number.parseInt(String(v ?? ''), 10);
       if (!Number.isFinite(n)) return fallback;
       if (n < min) return min;
       if (n > max) return max;
       return n;
-    }
-
-    function genderClass(g){
-      const s = String(g || '').toLowerCase();
-      if (s === 'female') return 'g-female';
-      if (s === 'male') return 'g-male';
-      if (s.includes('trans')) return 'g-trans';
-      if (s.includes('non') || s === 'nb') return 'g-nonbinary';
-      return 'g-unknown';
     }
 
     async function fetchSceneCard(endpointUrl, sceneId){
@@ -869,6 +938,30 @@ var configPageHTML = `<!doctype html>
       return d.toLocaleDateString();
     }
 
+    function normalizedFPS(v){
+      const n = Number(v || 0);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      return Math.min(n, 30);
+    }
+
+    function drawerSummarySuffix(sourceHash, card){
+      if (!sourceHash || !card) return '';
+      const out = [];
+      const sourceY = Number(sourceHash.resolution_y || 0);
+      const stashY = Number(card.resolutionY || 0);
+      if (sourceY > 0 && stashY > 0 && sourceY > stashY) out.push('Larger');
+
+      const sourceDur = Number(sourceHash.duration || 0);
+      const stashDur = Number(card.duration || 0);
+      if (sourceDur > 0 && stashDur > 0 && sourceDur > stashDur) out.push('Longer');
+
+      const sourceFPS = normalizedFPS(sourceHash.frame_rate);
+      const stashFPS = normalizedFPS(card.frameRate);
+      if (sourceFPS > 0 && stashFPS > 0 && sourceFPS > stashFPS) out.push('FPS');
+
+      return out.length ? (' ' + out.join(' | ')) : '';
+    }
+
     function basename(p){
       const s = String(p || '');
       if (!s) return '';
@@ -890,7 +983,7 @@ var configPageHTML = `<!doctype html>
         + '<div class="kv"><span class="k">Audio Codec:</span><span class="v">' + (file.audioCodec || '') + '</span></div>';
     }
 
-    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
+    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match, sourceHash){
       const iconSVG = {
         tag: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M0 80L0 229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7L48 32C21.5 32 0 53.5 0 80zm112 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"></path></svg>',
         user: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"></path></svg>',
@@ -900,8 +993,8 @@ var configPageHTML = `<!doctype html>
         stash: '<svg viewBox="0 0 640 512" aria-hidden="true"><path d="M58.9 42.1c3-6.1 9.6-9.6 16.3-8.7L320 64 564.8 33.4c6.7-.8 13.3 2.7 16.3 8.7l41.7 83.4c9 17.9-.6 39.6-19.8 45.1L439.6 217.3c-13.9 4-28.8-1.9-36.2-14.3L320 64 236.6 203c-7.4 12.4-22.3 18.3-36.2 14.3L37.1 170.6c-19.3-5.5-28.8-27.2-19.8-45.1L58.9 42.1zM321.1 128l54.9 91.4c14.9 24.8 44.6 36.6 72.5 28.6L576 211.6v167c0 22-15 41.2-36.4 46.6l-204.1 51c-10.2 2.6-20.9 2.6-31 0l-204.1-51C79 419.7 64 400.5 64 378.5v-167L191.6 248c27.8 8 57.6-3.8 72.5-28.6L318.9 128h2.2z"></path></svg>',
         files: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0z"></path></svg>'
       };
-      const perf = (card.performers || []).map(p =>
-        '<span class="pill ' + genderClass(p.gender) + '">' + p.name + '</span>'
+      const perf = (card.performers || []).map((p) =>
+        '<span class="scene-performer">' + (p && p.name ? p.name : '') + '</span>'
       ).join('');
       const icons = [];
       if (Number(card.tagCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.tag + '<span>' + Number(card.tagCount) + '</span></span>');
@@ -920,6 +1013,7 @@ var configPageHTML = `<!doctype html>
       const studioLogo = studioImageURL(publicUrl || endpointUrl, card.studioId);
       const title = card.title || match.title || '(untitled)';
       const titleHTML = title;
+      const drawerSuffix = drawerSummarySuffix(sourceHash, card);
       return '<div class="scene-card">'
         + '<div class="scene-media">'
         + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
@@ -928,9 +1022,10 @@ var configPageHTML = `<!doctype html>
         + '<div class="scene-overlay"><span class="res">' + ((card.resolutionX && card.resolutionY) ? (card.resolutionY + 'p') : '') + '</span> <span class="dur">' + (card.duration ? fmtDuration(card.duration) : '') + '</span></div>'
         + '<div class="scene-progress"><div></div></div>'
         + '</div>'
+        + '<div class="scene-card-section">'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
-        + '<details class="scene-drawer"><summary>ℹ️</summary><div class="scene-drawer-body">'
+        + '<details class="scene-drawer"><summary>ℹ️' + drawerSuffix + '</summary><div class="scene-drawer-body">'
         + renderFileDetails({
           hash: card.hash, phash: card.phash, path: card.path, fileSize: card.fileSize,
           fileModifiedTime: card.fileModifiedTime, resolutionX: card.resolutionX, resolutionY: card.resolutionY,
@@ -950,6 +1045,7 @@ var configPageHTML = `<!doctype html>
         + '</div></details>'
         + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + fmtSceneDate(card.date || '') + '</span></div>'
         + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
+        + '</div>'
         + '</div>';
     }
 
@@ -992,7 +1088,7 @@ var configPageHTML = `<!doctype html>
       const cards = await Promise.all(tasks.map(async (t) => {
         try {
           const card = await fetchSceneCard(t.endpointUrl, t.match.id);
-          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.publicUrl, t.match);
+          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.publicUrl, t.match, result.hash || {});
         } catch (e) {
           return '<div class="scene-card"><div class="scene-title">' + (t.match.title || t.match.id) + '</div><div class="scene-meta">Failed to fetch scene card: ' + String(e.message || e) + '</div></div>';
         }
@@ -1097,6 +1193,7 @@ var configPageHTML = `<!doctype html>
     el('stashIndex').onchange = updateCurl;
     el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
+    el('downloadSabBtn').onclick = () => { window.location.href = sabScriptURL(); };
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
