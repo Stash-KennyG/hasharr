@@ -2,3 +2,5 @@
 config.json
 data/
 *.local.json
+resources/favicon.ico
+resources/favicon-32.png

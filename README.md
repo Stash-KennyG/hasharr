@@ -12,7 +12,8 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 - Stores entries in a local JSON file (default: `/config/config.json`)
 - Validates endpoint on add/update by querying GraphQL for Stash version
 - Displays entries as `Name vVersion` (example: `PrimaryStash v0.31.0`)
-- Uses `resources/logo.png` for branding and `resources/favicon.ico` as service favicon
+- Uses `resources/logo.png` for branding
+- Generates `favicon.ico` from `resources/favicon_source.png` during container build
 
 ## Easy Path (GHCR)
 
@@ -121,6 +122,20 @@ curl -s -X POST http://localhost:9995/v1/phash \
 
 Default listen address is `:9995` (override with `HASHARR_ADDR`).
 Static asset path defaults to `./resources` (override with `HASHARR_RESOURCES_DIR`).
+
+Branding asset routes:
+
+- `/logo.png`
+- `/favicon.ico`
+- `/favicon-source.png`
+
+For external references (Docker icon/docs), `favicon_source.png` can be linked directly from GitHub raw content.
+
+Local icon generation:
+
+```bash
+make icons
+```
 
 
 ## Docker

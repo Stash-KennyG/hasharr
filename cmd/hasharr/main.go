@@ -40,6 +40,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/favicon.ico", handleFavicon)
+	mux.HandleFunc("/favicon-source.png", handleFaviconSource)
 	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
@@ -69,7 +70,17 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFavicon(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, resourcesDir+"/favicon.ico")
+	faviconPath := resourcesDir + "/favicon.ico"
+	if _, err := os.Stat(faviconPath); err == nil {
+		http.ServeFile(w, r, faviconPath)
+		return
+	}
+	// Local/dev fallback when favicon is not pre-generated.
+	http.ServeFile(w, r, resourcesDir+"/favicon_source.png")
+}
+
+func handleFaviconSource(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, resourcesDir+"/favicon_source.png")
 }
 
 func handleLogo(w http.ResponseWriter, r *http.Request) {
