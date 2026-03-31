@@ -36,8 +36,8 @@ type sceneLookupRawResp struct {
 				ID    string `json:"id"`
 				Title string `json:"title"`
 				Files []struct {
-					Path        string `json:"path"`
-					Duration    float64 `json:"duration"`
+					Path         string  `json:"path"`
+					Duration     float64 `json:"duration"`
 					Fingerprints []struct {
 						Type  string `json:"type"`
 						Value string `json:"value"`

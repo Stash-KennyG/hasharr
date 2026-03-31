@@ -195,8 +195,8 @@ func handlePHashMatch(w http.ResponseWriter, r *http.Request) {
 
 	endpoints := configStore.List()
 	type endpointLookup struct {
-		EndpointID   string                       `json:"endpointId"`
-		EndpointName string                       `json:"endpointName"`
+		EndpointID   string                        `json:"endpointId"`
+		EndpointName string                        `json:"endpointName"`
 		Matches      stashconfig.SceneLookupResult `json:"matches"`
 	}
 	lookups := []endpointLookup{}
