@@ -13,6 +13,31 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 - Validates endpoint on add/update by querying GraphQL for Stash version
 - Displays entries as `Name vVersion` (example: `PrimaryStash v0.31.0`)
 
+## Easy Path (GHCR)
+
+Pull and run the latest image:
+
+```bash
+docker pull ghcr.io/stash-kennyg/hasharr:latest
+docker run --rm -p 9995:9995 \
+  -v /path/to/hasharr-config:/config \
+  -v /downloaded:/downloaded:ro \
+  ghcr.io/stash-kennyg/hasharr:latest
+```
+
+Hello World:
+```
+curl -s -X GET http://localhost:9995/v1/healthz 
+```
+
+Test request:
+
+```bash
+curl -s -X POST http://localhost:9995/v1/phash \
+  -H 'Content-Type: text/plain' \
+  --data '"/downloaded/comp/man/vid/vid123.mp4"'
+```
+
 ## API
 
 ### `POST /v1/phash`
@@ -95,30 +120,6 @@ curl -s -X POST http://localhost:9995/v1/phash \
 
 Default listen address is `:9995` (override with `HASHARR_ADDR`).
 
-## Easy Path (GHCR)
-
-Pull and run the latest image:
-
-```bash
-docker pull ghcr.io/stash-kennyg/hasharr:latest
-docker run --rm -p 9995:9995 \
-  -v /path/to/hasharr-config:/config \
-  -v /downloaded:/downloaded:ro \
-  ghcr.io/stash-kennyg/hasharr:latest
-```
-
-Hello World:
-```
-curl -s -X GET http://localhost:9995/v1/healthz 
-```
-
-Test request:
-
-```bash
-curl -s -X POST http://localhost:9995/v1/phash \
-  -H 'Content-Type: text/plain' \
-  --data '"/downloaded/comp/man/vid/vid123.mp4"'
-```
 
 ## Docker
 
