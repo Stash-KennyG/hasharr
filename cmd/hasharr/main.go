@@ -541,6 +541,15 @@ var configPageHTML = `<!doctype html>
     .pathbar, .curlbar { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px; }
     .pathrow { display:flex; gap:8px; align-items:center; }
     .pathrow input { margin:0; }
+    input[type="range"] { -webkit-appearance:none; appearance:none; background:transparent; }
+    input[type="range"]::-webkit-slider-runnable-track { height:6px; background:#c7ccd5; border-radius:999px; }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%;
+      background:var(--accent); border:0; margin-top:-5px;
+    }
+    input[type="range"]::-moz-range-track { height:6px; background:#c7ccd5; border-radius:999px; }
+    input[type="range"]::-moz-range-progress { height:6px; background:#c7ccd5; border-radius:999px; }
+    input[type="range"]::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--accent); border:0; }
     .browser-results { display:grid; grid-template-columns:1.2fr .8fr; gap:10px; }
     table { width:100%; border-collapse:collapse; font-size:12px; }
     th, td { border-bottom:1px solid var(--border); padding:6px 8px; text-align:left; }
@@ -611,7 +620,7 @@ var configPageHTML = `<!doctype html>
             <option value="-1">All</option>
           </select>
           <label style="margin:0;min-width:95px;">maxTimeDelta</label>
-          <input id="maxTimeDelta" type="number" min="0" max="15" step="0.1" value="1" style="width:90px;" />
+          <input id="maxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
           <label style="margin:0;min-width:88px;">maxDistance</label>
           <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
           <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
@@ -758,14 +767,23 @@ var configPageHTML = `<!doctype html>
         return;
       }
       const stashIndex = Number(el('stashIndex').value || -1);
-      const maxTimeDelta = Number(el('maxTimeDelta').value || 1);
+      const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
       const maxDistance = Number(el('maxDistance').value || 0);
       const payload = { filePath: selectedEntry.path };
       if (stashIndex !== -1) payload.stashIndex = stashIndex;
       if (maxTimeDelta !== 1) payload.maxTimeDelta = maxTimeDelta;
       if (maxDistance !== 0) payload.maxDistance = maxDistance;
-      const cmd = 'curl -s -X POST http://localhost:9995/v1/phash-match -H "Content-Type: application/json" --data \'' + JSON.stringify(payload) + '\'';
+      const baseUrl = window.location.origin || 'http://localhost:9995';
+      const cmd = 'curl -s -X POST ' + baseUrl + '/v1/phash-match -H "Content-Type: application/json" --data \'' + JSON.stringify(payload) + '\'';
       el('curlCmd').textContent = cmd;
+    }
+
+    function clampInt(v, fallback, min, max){
+      const n = Number.parseInt(String(v ?? ''), 10);
+      if (!Number.isFinite(n)) return fallback;
+      if (n < min) return min;
+      if (n > max) return max;
+      return n;
     }
 
     async function loadDir(path){
@@ -797,7 +815,7 @@ var configPageHTML = `<!doctype html>
       showSpin(true);
       el('resultJson').textContent = 'Working...';
       const stashIndex = Number(el('stashIndex').value || -1);
-      const maxTimeDelta = Number(el('maxTimeDelta').value || 1);
+      const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
       const maxDistance = Number(el('maxDistance').value || 0);
       const payload = { filePath: target };
       if (stashIndex !== -1) payload.stashIndex = stashIndex;
@@ -824,7 +842,7 @@ var configPageHTML = `<!doctype html>
     el('hashBtn').onclick = runHash;
     el('upBtn').onclick = upFolder;
     el('stashIndex').onchange = updateCurl;
-    el('maxTimeDelta').oninput = updateCurl;
+    el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
