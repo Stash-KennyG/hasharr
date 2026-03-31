@@ -206,7 +206,7 @@ var configPageHTML = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>hasharr Configuration</title>
   <style>
-    :root { --bg:#1b1f24; --panel:#232933; --text:#d9dde3; --muted:#8a94a6; --accent:#f7b500; --ok:#2ecc71; --err:#ff5f56; --border:#313846; }
+    :root { --bg:#1b1f24; --panel:#232933; --text:#d9dde3; --muted:#8a94a6; --accent:#2b9bd6; --accent-hover:#2388bc; --accent-active:#1d759f; --ok:#2ecc71; --err:#ff5f56; --border:#313846; }
     * { box-sizing:border-box; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     body { margin:0; background:var(--bg); color:var(--text); }
     .wrap { max-width:1000px; margin:28px auto; padding:0 16px; display:grid; grid-template-columns:320px 1fr; gap:16px; }
@@ -221,7 +221,9 @@ var configPageHTML = `<!doctype html>
     label { font-size:12px; color:var(--muted); display:block; margin:8px 0 6px; }
     input { width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text); }
     button { margin-top:12px; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:#2c3340; color:var(--text); cursor:pointer; }
-    button.primary { background:var(--accent); color:#202327; border:0; font-weight:700; }
+    button.primary { background:var(--accent); color:#ffffff; border:0; font-weight:700; }
+    button.primary:hover { background:var(--accent-hover); }
+    button.primary:active { background:var(--accent-active); }
     .status { min-height:22px; margin-top:10px; font-size:13px; }
     .ok { color:var(--ok); } .err { color:var(--err); }
     .tiny { color:var(--muted); font-size:12px; margin-top:8px; }
