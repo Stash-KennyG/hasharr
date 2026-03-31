@@ -648,7 +648,7 @@ var configPageHTML = `<!doctype html>
     .scene-file:first-child { border-top:0; }
     .scene-file > summary { padding:8px 10px; color:#edf3fa; font-weight:500; background:#273645; }
     .scene-file-body { padding:8px 10px; display:grid; gap:6px; background:#2f3e4d; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); margin-right:6px; margin-bottom:6px; font-size:12px; }
+    .pill { display:inline-block; padding:2px 8px; margin-right:6px; margin-bottom:6px; font-size:12px; }
     .g-female { color:#f7b2d9; border-color:#f7b2d955; }
     .g-male { color:#9cc7ff; border-color:#9cc7ff55; }
     .g-trans { color:#d2b8ff; border-color:#d2b8ff55; }
