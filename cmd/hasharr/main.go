@@ -41,6 +41,7 @@ func main() {
 	mux.HandleFunc("/v1/phash", handlePHash)
 	mux.HandleFunc("/v1/stash-endpoints", handleStashEndpoints)
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
+	mux.HandleFunc("/v1/stash-endpoints-test", handleStashEndpointTest)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -150,6 +151,37 @@ func handleStashEndpoints(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleStashEndpointTest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req stashconfig.Endpoint
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.GraphQLURL = strings.TrimSpace(req.GraphQLURL)
+	if req.Name == "" || req.GraphQLURL == "" {
+		writeErr(w, http.StatusBadRequest, "name and graphqlUrl are required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	version, err := stashconfig.QueryVersion(ctx, &http.Client{Timeout: 15 * time.Second}, req.GraphQLURL, req.APIKey)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"name":    req.Name,
+		"version": version,
+	})
+}
+
 func handleStashEndpointByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/v1/stash-endpoints/")
 	if id == "" {
@@ -247,6 +279,7 @@ var configPageHTML = `<!doctype html>
       <label>Api Key (optional)</label>
       <input id="apiKey" placeholder="ApiKey..." />
       <div class="row">
+        <button class="grow" id="testBtn">Test</button>
         <button class="primary grow" id="saveBtn">Save</button>
         <button class="grow" id="newBtn">New</button>
         <button class="grow" id="deleteBtn">Delete</button>
@@ -262,7 +295,12 @@ var configPageHTML = `<!doctype html>
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
     function clearForm(){ el('name').value=''; el('graphqlUrl').value=''; el('apiKey').value=''; selectedId=null; el('formTitle').textContent='Add Endpoint'; renderList(); }
     function fillForm(ep){ el('name').value=ep.name; el('graphqlUrl').value=ep.graphqlUrl; el('apiKey').value=ep.apiKey||''; selectedId=ep.id; el('formTitle').textContent='Edit Endpoint'; renderList(); }
-    function line(ep){ return ep.name + '  v' + ep.version; }
+    function prettyVersion(v){
+      const s = String(v || '').trim();
+      if (!s) return '';
+      return (s.startsWith('v') || s.startsWith('V')) ? s : ('v' + s);
+    }
+    function line(ep){ return ep.name + '  ' + prettyVersion(ep.version); }
     function renderList(){
       const list = el('list'); list.innerHTML='';
       for (const ep of endpoints){
@@ -291,6 +329,15 @@ var configPageHTML = `<!doctype html>
       await load();
       fillForm(out);
     }
+    async function testEndpoint(){
+      status('Testing endpoint...');
+      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), apiKey:el('apiKey').value.trim() };
+      if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
+      const res = await fetch('/v1/stash-endpoints-test',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const out = await res.json();
+      if (!res.ok){ status(out.error || 'Test failed','err'); return; }
+      status('Connection OK: ' + body.name + ' ' + prettyVersion(out.version), 'ok');
+    }
     async function del(){
       if (!selectedId){ status('Select an endpoint first','err'); return; }
       const res = await fetch('/v1/stash-endpoints/' + selectedId,{ method:'DELETE' });
@@ -301,6 +348,7 @@ var configPageHTML = `<!doctype html>
       clearForm();
     }
     el('saveBtn').onclick=save;
+    el('testBtn').onclick=testEndpoint;
     el('newBtn').onclick=()=>{ clearForm(); status(''); };
     el('deleteBtn').onclick=del;
     load().catch(err=>status(String(err),'err'));
