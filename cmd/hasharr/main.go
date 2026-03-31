@@ -928,6 +928,23 @@ var configPageHTML = `<!doctype html>
       return String(m) + ':' + String(r).padStart(2, '0');
     }
 
+    function fmtBytes(n){
+      const b = Number(n || 0);
+      if (!Number.isFinite(b) || b <= 0) return '';
+      const units = ['B','KiB','MiB','GiB','TiB'];
+      let v = b, i = 0;
+      while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+      return (i === 0 ? String(Math.round(v)) : v.toFixed(2).replace(/\.00$/, '')) + ' ' + units[i];
+    }
+
+    function fmtDate(s){
+      const v = String(s || '').trim();
+      if (!v) return '';
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return v;
+      return d.toLocaleString();
+    }
+
     function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
       const iconSVG = {
         tag: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M0 80L0 229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7L48 32C21.5 32 0 53.5 0 80zm112 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"></path></svg>',
@@ -966,10 +983,16 @@ var configPageHTML = `<!doctype html>
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
         + '<details class="scene-drawer"><summary>Details</summary><div class="scene-drawer-body">'
-        + ('<div>Endpoint: ' + endpointName + ' (' + endpointUrl + ')</div>')
-        + ('<div>Scene: ' + sid + ' | Distance: ' + Number(match.distance || 0) + ' | ΔDuration: ' + Number(match.durationDiff || 0).toFixed(2) + 's</div>')
-        + ((card.resolutionX && card.resolutionY) ? ('<div>Dimensions: ' + card.resolutionX + ' x ' + card.resolutionY + '</div>') : '')
-        + (card.duration ? ('<div>Duration: ' + fmtDuration(card.duration) + '</div>') : '')
+        + '<div>Hash: ' + (card.hash || '') + '</div>'
+        + '<div>PHash: ' + (card.phash || '') + '</div>'
+        + '<div>Path: ' + (card.path || '') + '</div>'
+        + '<div>File Size: ' + (fmtBytes(card.fileSize) || '') + '</div>'
+        + '<div>File Modified Stamp: ' + (fmtDate(card.fileModifiedTime) || '') + '</div>'
+        + '<div>Dimensions: ' + ((card.resolutionX && card.resolutionY) ? (card.resolutionX + ' x ' + card.resolutionY) : '') + '</div>'
+        + '<div>Frame Rate: ' + (card.frameRate ? (Number(card.frameRate).toFixed(2) + ' fps') : '') + '</div>'
+        + '<div>Bit Rate: ' + (card.bitRate ? (Number(card.bitRate / 1000000).toFixed(2) + ' mbps') : '') + '</div>'
+        + '<div>Video Codec: ' + (card.videoCodec || '') + '</div>'
+        + '<div>Audio Codec: ' + (card.audioCodec || '') + '</div>'
         + (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
         + '</div></details>'
         + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + (card.date || '') + '</span></div>'

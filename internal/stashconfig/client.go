@@ -54,6 +54,15 @@ type SceneCard struct {
 	ResolutionX    int         `json:"resolutionX"`
 	ResolutionY    int         `json:"resolutionY"`
 	Duration       float64     `json:"duration"`
+	Hash           string      `json:"hash,omitempty"`
+	PHash          string      `json:"phash,omitempty"`
+	Path           string      `json:"path,omitempty"`
+	FileSize       int64       `json:"fileSize"`
+	FileModTime    string      `json:"fileModifiedTime,omitempty"`
+	FrameRate      float64     `json:"frameRate"`
+	BitRate        int64       `json:"bitRate"`
+	VideoCodec     string      `json:"videoCodec,omitempty"`
+	AudioCodec     string      `json:"audioCodec,omitempty"`
 	MarkerCount    int         `json:"markerCount"`
 	StashIDCount   int         `json:"stashIdCount"`
 	FileCount      int         `json:"fileCount"`
@@ -134,7 +143,20 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
     o_counter
     scene_markers { id }
     stash_ids { stash_id }
-    files { id width height duration }
+    files {
+      id
+      path
+      size
+      mod_time
+      width
+      height
+      duration
+      frame_rate
+      bit_rate
+      video_codec
+      audio_codec
+      fingerprints { type value }
+    }
   }
 }`, sceneArg)
 	raw, err := doQueryRaw(ctx, client, graphqlURL, apiKey, query)
@@ -171,10 +193,21 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
 			StashID string `json:"stash_id"`
 		} `json:"stash_ids"`
 		Files []struct {
-			ID       string  `json:"id"`
-			Width    int     `json:"width"`
-			Height   int     `json:"height"`
-			Duration float64 `json:"duration"`
+			ID           string  `json:"id"`
+			Path         string  `json:"path"`
+			Size         int64   `json:"size"`
+			ModTime      string  `json:"mod_time"`
+			Width        int     `json:"width"`
+			Height       int     `json:"height"`
+			Duration     float64 `json:"duration"`
+			FrameRate    float64 `json:"frame_rate"`
+			BitRate      int64   `json:"bit_rate"`
+			VideoCodec   string  `json:"video_codec"`
+			AudioCodec   string  `json:"audio_codec"`
+			Fingerprints []struct {
+				Type  string `json:"type"`
+				Value string `json:"value"`
+			} `json:"fingerprints"`
 		} `json:"files"`
 	}
 	if err := json.Unmarshal(sceneRaw, &payload); err != nil {
@@ -199,9 +232,25 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
 		card.Studio = payload.Studio.Name
 	}
 	if len(payload.Files) > 0 {
-		card.ResolutionX = payload.Files[0].Width
-		card.ResolutionY = payload.Files[0].Height
-		card.Duration = payload.Files[0].Duration
+		f := payload.Files[0]
+		card.ResolutionX = f.Width
+		card.ResolutionY = f.Height
+		card.Duration = f.Duration
+		card.Path = f.Path
+		card.FileSize = f.Size
+		card.FileModTime = f.ModTime
+		card.FrameRate = f.FrameRate
+		card.BitRate = f.BitRate
+		card.VideoCodec = f.VideoCodec
+		card.AudioCodec = f.AudioCodec
+		for _, fp := range f.Fingerprints {
+			switch strings.ToLower(strings.TrimSpace(fp.Type)) {
+			case "oshash":
+				card.Hash = fp.Value
+			case "phash":
+				card.PHash = fp.Value
+			}
+		}
 	}
 	return card, nil
 }
