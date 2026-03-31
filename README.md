@@ -15,6 +15,14 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 - Name tooltip shows version; count tooltip shows phash coverage (example: `92.00% phashes. 84,123 of 90,456 scenes`)
 - Refreshes scene/phash metrics on each page load
 - Refreshes endpoint version lazily when hovering endpoint name
+- Settings area is a collapsible drawer (collapsed by default when endpoints exist)
+- Includes a manual file browser + hash runner workflow:
+  - defaults to `/downloaded` if present, else `/`
+  - shows name, size, and modified date
+  - supports up-folder navigation, single-select highlight, and double-click actions
+  - generates curl command for selected file
+  - runs hash on double-click or `Hash` button
+  - displays a working spinner and JSON results panel
 - Uses `resources/logo.png` for branding
 - Generates `favicon.ico` from `resources/favicon_source.png` during container build
 

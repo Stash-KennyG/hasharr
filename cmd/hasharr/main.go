@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,6 +23,19 @@ type requestBody struct {
 
 type errorResponse struct {
 	Error string `json:"error"`
+}
+
+type fsEntry struct {
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	IsDir    bool   `json:"isDir"`
+	Size     int64  `json:"size"`
+	Modified string `json:"modified"`
+}
+
+type fsListResponse struct {
+	Path    string    `json:"path"`
+	Entries []fsEntry `json:"entries"`
 }
 
 var computePHash = phash.Compute
@@ -44,6 +59,7 @@ func main() {
 	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
+	mux.HandleFunc("/v1/fs/list", handleFSList)
 	mux.HandleFunc("/v1/stash-endpoints", handleStashEndpoints)
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
 	mux.HandleFunc("/v1/stash-endpoints-test", handleStashEndpointTest)
@@ -117,6 +133,72 @@ func handlePHash(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func handleFSList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	requested := strings.TrimSpace(r.URL.Query().Get("path"))
+	if requested == "" {
+		if st, err := os.Stat("/downloaded"); err == nil && st.IsDir() {
+			requested = "/downloaded"
+		} else {
+			requested = "/"
+		}
+	}
+
+	abs, err := filepath.Abs(requested)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	target := abs
+	if !info.IsDir() {
+		target = filepath.Dir(abs)
+	}
+
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	out := make([]fsEntry, 0, len(entries))
+	for _, ent := range entries {
+		entInfo, err := ent.Info()
+		if err != nil {
+			continue
+		}
+		fullPath := filepath.Join(target, ent.Name())
+		out = append(out, fsEntry{
+			Name:     ent.Name(),
+			Path:     fullPath,
+			IsDir:    ent.IsDir(),
+			Size:     entInfo.Size(),
+			Modified: entInfo.ModTime().Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].IsDir != out[j].IsDir {
+			return out[i].IsDir
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+
+	writeJSON(w, http.StatusOK, fsListResponse{
+		Path:    target,
+		Entries: out,
+	})
 }
 
 func parsePath(r *http.Request) (string, error) {
@@ -297,143 +379,193 @@ var configPageHTML = `<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>hasharr Configuration</title>
+  <title>hasharr</title>
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <style>
-    :root { --bg:#1b1f24; --panel:#232933; --text:#d9dde3; --muted:#8a94a6; --accent:#2b9bd6; --accent-hover:#2388bc; --accent-active:#1d759f; --ok:#2ecc71; --err:#ff5f56; --border:#313846; }
+    :root { --bg:#1b1f24; --panel:#232933; --panel2:#1f2430; --text:#d9dde3; --muted:#8a94a6; --accent:#2b9bd6; --accent-hover:#2388bc; --accent-active:#1d759f; --ok:#2ecc71; --err:#ff5f56; --border:#313846; }
     * { box-sizing:border-box; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     body { margin:0; background:var(--bg); color:var(--text); }
-    .wrap { max-width:1000px; margin:28px auto; padding:0 16px; display:grid; grid-template-columns:320px 1fr; gap:16px; }
-    .brand { max-width:1000px; margin:22px auto 0; padding:0 16px; display:flex; align-items:center; gap:14px; }
-    .brand img { width:108px; height:108px; border-radius:12px; }
-    .brand h1 { margin:0; font-size:72px; line-height:1; }
-    .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
-    h1 { margin:0 0 4px; font-size:20px; }
-    h2 { margin:0 0 12px; font-size:14px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-    ul { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
-    li { border:1px solid var(--border); border-radius:8px; padding:10px; cursor:pointer; }
+    .container { max-width:1300px; margin:12px auto 24px; padding:0 16px; }
+    .brand { display:flex; align-items:center; gap:12px; margin:8px 0 10px; }
+    .brand img { width:64px; height:64px; border-radius:8px; }
+    .brand h1 { margin:0; font-size:56px; line-height:1; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; }
+    .drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border-radius:8px; background:var(--panel2); }
+    .drawer-title { font-weight:700; }
+    .carrot { color:var(--muted); transition:transform .15s ease; user-select:none; }
+    .collapsed .carrot { transform:rotate(-90deg); }
+    .drawer-body { margin-top:10px; display:grid; grid-template-columns:260px 1fr; gap:12px; }
+    .collapsed .drawer-body { display:none; }
+    .card { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px; }
+    h2 { margin:0 0 2px; font-size:28px; }
+    h3 { margin:0 0 8px; font-size:18px; }
+    .sub { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+    ul { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; max-height:240px; overflow:auto; }
+    li { border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer; }
     li.active { border-color:var(--accent); background:#2c3340; }
     .item { display:flex; justify-content:space-between; align-items:center; gap:10px; }
     .item-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .item-count { text-align:right; min-width:95px; font-variant-numeric: tabular-nums; color:var(--text); }
-    .row { display:flex; gap:8px; }
-    .grow { flex:1; }
+    .item-count { min-width:95px; text-align:right; font-variant-numeric: tabular-nums; }
     label { font-size:12px; color:var(--muted); display:block; margin:8px 0 6px; }
     input { width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text); }
-    button { margin-top:12px; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:#2c3340; color:var(--text); cursor:pointer; }
-    button.primary { background:var(--accent); color:#ffffff; border:0; font-weight:700; }
+    .row { display:flex; gap:8px; }
+    .grow { flex:1; }
+    button { margin-top:10px; padding:9px 12px; border-radius:8px; border:1px solid var(--border); background:#2c3340; color:var(--text); cursor:pointer; }
+    button.primary { background:var(--accent); color:#fff; border:0; font-weight:700; }
     button.primary:hover { background:var(--accent-hover); }
     button.primary:active { background:var(--accent-active); }
-    .status { min-height:22px; margin-top:10px; font-size:13px; }
+    .status { min-height:20px; margin-top:8px; font-size:13px; }
     .ok { color:var(--ok); } .err { color:var(--err); }
-    .tiny { color:var(--muted); font-size:12px; margin-top:8px; }
-    .usage { margin-top:12px; padding-top:10px; border-top:1px dashed var(--border); color:var(--muted); font-size:12px; line-height:1.5; }
-    .usage code { color:var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+    .usage { margin-top:10px; padding-top:8px; border-top:1px dashed var(--border); color:var(--muted); font-size:12px; }
+    .workflow { margin-top:12px; display:grid; grid-template-columns:1fr; gap:10px; }
+    .pathbar, .curlbar { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px; }
+    .pathrow { display:flex; gap:8px; align-items:center; }
+    .pathrow input { margin:0; }
+    .browser-results { display:grid; grid-template-columns:1.2fr .8fr; gap:10px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th, td { border-bottom:1px solid var(--border); padding:6px 8px; text-align:left; }
+    tr.selected { background:#2b3442; }
+    tr:hover { background:#27303d; cursor:pointer; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break:break-all; }
+    .results { min-height:360px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px; display:flex; flex-direction:column; }
+    .spinner { height:4px; background:transparent; overflow:hidden; border-radius:3px; visibility:hidden; }
+    .spinner.show { visibility:visible; }
+    .spinner::before { content:''; display:block; width:35%; height:100%; background:var(--accent); animation:slide 1s linear infinite; }
+    @keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
+    pre { margin:10px 0 0; white-space:pre-wrap; color:#c9d0dd; }
+    @media (max-width: 1000px) { .drawer-body, .browser-results { grid-template-columns:1fr; } .brand h1 { font-size:40px; } }
   </style>
 </head>
 <body>
-  <div class="brand">
-    <img src="/logo.png" alt="hasharr logo" />
-    <h1>hasharr</h1>
-  </div>
-  <div class="wrap">
-    <section class="card">
-      <h1>Stash Endpoints</h1>
-      <h2>Configured Instances</h2>
-      <ul id="list"></ul>
-    </section>
-    <section class="card">
-      <h1 id="formTitle">Add Endpoint</h1>
-      <h2>Validated on Save</h2>
-      <label>Name</label>
-      <input id="name" placeholder="PrimaryStash" />
-      <label>GraphQL Url</label>
-      <input id="graphqlUrl" placeholder="http://stash.local:9999/graphql" />
-      <label>Api Key (optional)</label>
-      <input id="apiKey" placeholder="ApiKey..." />
-      <div class="row">
-        <button class="grow" id="testBtn">Test</button>
-        <button class="primary grow" id="saveBtn">Save</button>
-        <button class="grow" id="newBtn">New</button>
-        <button class="grow" id="deleteBtn">Delete</button>
+  <div class="container">
+    <div class="brand">
+      <img src="/logo.png" alt="hasharr logo" />
+      <h1>hasharr</h1>
+    </div>
+
+    <section class="panel" id="settingsDrawer">
+      <div class="drawer-head" id="drawerToggle">
+        <div>
+          <div class="drawer-title">Settings Area</div>
+          <div class="sub">stash endpoints and diagnostics</div>
+        </div>
+        <div class="carrot">▾</div>
       </div>
-      <div class="status" id="status"></div>
-      <div class="tiny">Display format: <strong>Name vVersion</strong> after endpoint validation succeeds.</div>
-      <div class="usage">
-        <div><strong>Quick usage</strong></div>
-        <div>- Add endpoint details, click <strong>Test</strong>, then <strong>Save</strong>.</div>
-        <div>- Health check: <code>GET /healthz</code></div>
-        <div>- Hash API: <code>POST /v1/phash</code> with body <code>"/path/to/video.mp4"</code></div>
+      <div class="drawer-body">
+        <div class="card">
+          <h3>Stash Endpoints</h3>
+          <div class="sub">Configured instances</div>
+          <ul id="list"></ul>
+        </div>
+        <div class="card">
+          <h3 id="formTitle">Add Endpoint</h3>
+          <div class="sub">Validated on save</div>
+          <label>Name</label>
+          <input id="name" placeholder="PrimaryStash" />
+          <label>GraphQL Url</label>
+          <input id="graphqlUrl" placeholder="http://stash.local:9999/graphql" />
+          <label>Api Key (optional)</label>
+          <input id="apiKey" placeholder="ApiKey..." />
+          <div class="row">
+            <button class="grow" id="testBtn">Test</button>
+            <button class="primary grow" id="saveBtn">Save</button>
+            <button class="grow" id="newBtn">New</button>
+            <button class="grow" id="deleteBtn">Delete</button>
+          </div>
+          <div class="status" id="status"></div>
+          <div class="usage">
+            <div><strong>Quick usage</strong></div>
+            <div>- Add endpoint details, click <strong>Test</strong>, then <strong>Save</strong>.</div>
+            <div>- Hover endpoint name for lazy version refresh.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="workflow">
+      <div class="curlbar">
+        <div class="sub">generated curl command</div>
+        <div class="mono" id="curlCmd">Select a file to generate curl command.</div>
+      </div>
+      <div class="pathbar">
+        <div class="sub">path</div>
+        <div class="pathrow">
+          <button id="upBtn">Up</button>
+          <input id="pathInput" />
+          <button class="primary" id="hashBtn">Hash</button>
+        </div>
+      </div>
+      <div class="browser-results">
+        <div class="card">
+          <table>
+            <thead><tr><th>Name</th><th>Size</th><th>Date Modified</th></tr></thead>
+            <tbody id="fileRows"></tbody>
+          </table>
+        </div>
+        <div class="results">
+          <div class="sub">results</div>
+          <div class="spinner" id="spinner"></div>
+          <pre id="resultJson">Results</pre>
+        </div>
       </div>
     </section>
   </div>
+
   <script>
     let endpoints = [];
     const versionLoaded = new Set();
     let selectedId = null;
+    let currentPath = '';
+    let selectedEntry = null;
+    let entries = [];
     const el = (id) => document.getElementById(id);
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
+    const showSpin = (on) => el('spinner').classList.toggle('show', !!on);
+    const prettyVersion = (v) => { const s=String(v||'').trim(); return !s ? '' : (s[0]==='v'||s[0]==='V'?s:('v'+s)); };
+    const fmtCount = (n) => Number(n||0).toLocaleString();
+    const versionTitle = (ep) => 'Version: ' + prettyVersion(ep.version);
+    const countTitle = (ep) => Number(ep.phashPercent||0).toFixed(2) + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
+
     function clearForm(){ el('name').value=''; el('graphqlUrl').value=''; el('apiKey').value=''; selectedId=null; el('formTitle').textContent='Add Endpoint'; renderList(); }
     function fillForm(ep){ el('name').value=ep.name; el('graphqlUrl').value=ep.graphqlUrl; el('apiKey').value=ep.apiKey||''; selectedId=ep.id; el('formTitle').textContent='Edit Endpoint'; renderList(); }
-    function prettyVersion(v){
-      const s = String(v || '').trim();
-      if (!s) return '';
-      return (s.startsWith('v') || s.startsWith('V')) ? s : ('v' + s);
+
+    async function loadEndpoints(){
+      status('Refreshing endpoint metrics...');
+      const res = await fetch('/v1/stash-endpoints?refresh=1');
+      const out = await res.json();
+      if (!res.ok){ status(out.error || 'Refresh failed','err'); return; }
+      endpoints = out;
+      renderList();
+      status('Metrics refreshed','ok');
+
+      const drawer = el('settingsDrawer');
+      if (endpoints.length === 0) drawer.classList.remove('collapsed');
+      else drawer.classList.add('collapsed');
     }
-    function fmtCount(n){
-      const x = Number(n || 0);
-      return x.toLocaleString();
-    }
-    function versionTitle(ep){ return 'Version: ' + prettyVersion(ep.version); }
-    function countTitle(ep){
-      const pct = Number(ep.phashPercent || 0).toFixed(2);
-      return pct + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
-    }
+
     function renderList(){
       const list = el('list'); list.innerHTML='';
       for (const ep of endpoints){
         const li=document.createElement('li');
-        const row=document.createElement('div');
-        row.className='item';
-        const name=document.createElement('span');
-        name.className='item-name';
-        name.textContent=ep.name;
-        name.title=versionTitle(ep);
+        const row=document.createElement('div'); row.className='item';
+        const name=document.createElement('span'); name.className='item-name'; name.textContent=ep.name; name.title=versionTitle(ep);
         name.onmouseenter = async () => {
           if (versionLoaded.has(ep.id)) return;
           try {
             const res = await fetch('/v1/stash-endpoints/' + ep.id + '/version');
             const out = await res.json();
-            if (res.ok && out.version) {
-              versionLoaded.add(ep.id);
-              ep.version = out.version;
-              name.title = versionTitle(ep);
-            }
-          } catch (_) { /* best-effort tooltip refresh */ }
+            if (res.ok && out.version){ versionLoaded.add(ep.id); ep.version = out.version; name.title = versionTitle(ep); }
+          } catch(_) {}
         };
-        const count=document.createElement('span');
-        count.className='item-count';
-        count.textContent=fmtCount(ep.sceneCount);
-        count.title=countTitle(ep);
-        row.appendChild(name);
-        row.appendChild(count);
-        li.appendChild(row);
+        const count=document.createElement('span'); count.className='item-count'; count.textContent=fmtCount(ep.sceneCount); count.title=countTitle(ep);
+        row.appendChild(name); row.appendChild(count); li.appendChild(row);
         if (ep.id===selectedId) li.classList.add('active');
         li.onclick=()=>fillForm(ep);
         list.appendChild(li);
       }
     }
-    async function load(){
-      status('Refreshing endpoint metrics...');
-      const res=await fetch('/v1/stash-endpoints?refresh=1');
-      const out=await res.json();
-      if (!res.ok){ status(out.error || 'Refresh failed','err'); return; }
-      endpoints=out;
-      renderList();
-      status('Metrics refreshed','ok');
-    }
-    async function save(){
+
+    async function saveEndpoint(){
       status('Validating endpoint...');
       const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), apiKey:el('apiKey').value.trim() };
       if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
@@ -443,9 +575,10 @@ var configPageHTML = `<!doctype html>
       const out = await res.json();
       if (!res.ok){ status(out.error || 'Save failed','err'); return; }
       status('Saved and validated: ' + out.name + ' ' + prettyVersion(out.version), 'ok');
-      await load();
+      await loadEndpoints();
       fillForm(out);
     }
+
     async function testEndpoint(){
       status('Testing endpoint...');
       const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), apiKey:el('apiKey').value.trim() };
@@ -455,19 +588,74 @@ var configPageHTML = `<!doctype html>
       if (!res.ok){ status(out.error || 'Test failed','err'); return; }
       status('Connection OK: ' + body.name + ' ' + prettyVersion(out.version), 'ok');
     }
-    async function del(){
+
+    async function deleteEndpoint(){
       if (!selectedId){ status('Select an endpoint first','err'); return; }
       const res = await fetch('/v1/stash-endpoints/' + selectedId,{ method:'DELETE' });
       const out = await res.json();
       if (!res.ok){ status(out.error || 'Delete failed','err'); return; }
-      status('Deleted', 'ok');
-      await load();
+      status('Deleted','ok');
+      await loadEndpoints();
       clearForm();
     }
-    el('saveBtn').onclick=save;
-    el('testBtn').onclick=testEndpoint;
-    el('newBtn').onclick=()=>{ clearForm(); status(''); };
-    el('deleteBtn').onclick=del;
-    load().catch(err=>status(String(err),'err'));
+
+    function updateCurl(){
+      const cmd = selectedEntry && !selectedEntry.isDir
+        ? 'curl -s -X POST http://localhost:9995/v1/phash -H "Content-Type: text/plain" --data "\\"' + selectedEntry.path + '\\""'
+        : 'Select a file to generate curl command.';
+      el('curlCmd').textContent = cmd;
+    }
+
+    async function loadDir(path){
+      const q = path ? ('?path=' + encodeURIComponent(path)) : '';
+      const res = await fetch('/v1/fs/list' + q);
+      const out = await res.json();
+      if (!res.ok){ el('resultJson').textContent = JSON.stringify(out, null, 2); return; }
+      currentPath = out.path; entries = out.entries || []; selectedEntry = null;
+      el('pathInput').value = currentPath;
+      renderEntries();
+      updateCurl();
+    }
+
+    function renderEntries(){
+      const tbody = el('fileRows'); tbody.innerHTML='';
+      for (const ent of entries){
+        const tr = document.createElement('tr');
+        if (selectedEntry && selectedEntry.path === ent.path) tr.classList.add('selected');
+        tr.innerHTML = '<td>' + (ent.isDir ? '📁 ' : '📄 ') + ent.name + '</td><td>' + (ent.isDir ? '' : fmtCount(ent.size)) + '</td><td>' + ent.modified + '</td>';
+        tr.onclick = () => { selectedEntry = ent; el('pathInput').value = ent.path; renderEntries(); updateCurl(); };
+        tr.ondblclick = async () => { if (ent.isDir) await loadDir(ent.path); else { selectedEntry = ent; updateCurl(); await runHash(); } };
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function runHash(){
+      const target = selectedEntry && !selectedEntry.isDir ? selectedEntry.path : el('pathInput').value.trim();
+      if (!target){ el('resultJson').textContent = 'No file selected.'; return; }
+      showSpin(true);
+      el('resultJson').textContent = 'Working...';
+      const res = await fetch('/v1/phash', { method:'POST', headers:{'Content-Type':'text/plain'}, body: '"' + target + '"' });
+      const out = await res.json().catch(()=>({error:'Invalid response'}));
+      showSpin(false);
+      el('resultJson').textContent = JSON.stringify(out, null, 2);
+    }
+
+    async function upFolder(){
+      const base = selectedEntry ? (selectedEntry.isDir ? selectedEntry.path : currentPath) : currentPath;
+      let parent = '/';
+      if (base && base !== '/') parent = base.substring(0, base.lastIndexOf('/')) || '/';
+      await loadDir(parent);
+    }
+
+    el('drawerToggle').onclick = () => el('settingsDrawer').classList.toggle('collapsed');
+    el('saveBtn').onclick = saveEndpoint;
+    el('testBtn').onclick = testEndpoint;
+    el('newBtn').onclick = () => { clearForm(); status(''); };
+    el('deleteBtn').onclick = deleteEndpoint;
+    el('hashBtn').onclick = runHash;
+    el('upBtn').onclick = upFolder;
+    el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
+
+    Promise.all([loadEndpoints(), loadDir('')]).catch(err => { status(String(err),'err'); });
   </script>
 </body></html>`
