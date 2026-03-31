@@ -860,6 +860,30 @@ var configPageHTML = `<!doctype html>
       return d.toLocaleDateString();
     }
 
+    function normalizedFPS(v){
+      const n = Number(v || 0);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      return Math.min(n, 30);
+    }
+
+    function drawerSummarySuffix(sourceHash, card){
+      if (!sourceHash || !card) return '';
+      const out = [];
+      const sourceY = Number(sourceHash.resolution_y || 0);
+      const stashY = Number(card.resolutionY || 0);
+      if (sourceY > 0 && stashY > 0 && sourceY > stashY) out.push('Larger');
+
+      const sourceDur = Number(sourceHash.duration || 0);
+      const stashDur = Number(card.duration || 0);
+      if (sourceDur > 0 && stashDur > 0 && sourceDur > stashDur) out.push('Longer');
+
+      const sourceFPS = normalizedFPS(sourceHash.frame_rate);
+      const stashFPS = normalizedFPS(card.frameRate);
+      if (sourceFPS > 0 && stashFPS > 0 && sourceFPS > stashFPS) out.push('FPS');
+
+      return out.length ? (' ' + out.join(' | ')) : '';
+    }
+
     function basename(p){
       const s = String(p || '');
       if (!s) return '';
@@ -881,7 +905,7 @@ var configPageHTML = `<!doctype html>
         + '<div class="kv"><span class="k">Audio Codec:</span><span class="v">' + (file.audioCodec || '') + '</span></div>';
     }
 
-    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match){
+    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match, sourceHash){
       const iconSVG = {
         tag: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M0 80L0 229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7L48 32C21.5 32 0 53.5 0 80zm112 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"></path></svg>',
         user: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"></path></svg>',
@@ -911,6 +935,7 @@ var configPageHTML = `<!doctype html>
       const studioLogo = studioImageURL(publicUrl || endpointUrl, card.studioId);
       const title = card.title || match.title || '(untitled)';
       const titleHTML = title;
+      const drawerSuffix = drawerSummarySuffix(sourceHash, card);
       return '<div class="scene-card">'
         + '<div class="scene-media">'
         + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
@@ -922,7 +947,7 @@ var configPageHTML = `<!doctype html>
         + '<div class="scene-card-section">'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
-        + '<details class="scene-drawer"><summary>ℹ️</summary><div class="scene-drawer-body">'
+        + '<details class="scene-drawer"><summary>ℹ️' + drawerSuffix + '</summary><div class="scene-drawer-body">'
         + renderFileDetails({
           hash: card.hash, phash: card.phash, path: card.path, fileSize: card.fileSize,
           fileModifiedTime: card.fileModifiedTime, resolutionX: card.resolutionX, resolutionY: card.resolutionY,
@@ -985,7 +1010,7 @@ var configPageHTML = `<!doctype html>
       const cards = await Promise.all(tasks.map(async (t) => {
         try {
           const card = await fetchSceneCard(t.endpointUrl, t.match.id);
-          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.publicUrl, t.match);
+          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.publicUrl, t.match, result.hash || {});
         } catch (e) {
           return '<div class="scene-card"><div class="scene-title">' + (t.match.title || t.match.id) + '</div><div class="scene-meta">Failed to fetch scene card: ' + String(e.message || e) + '</div></div>';
         }
