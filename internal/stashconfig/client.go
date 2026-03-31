@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -115,8 +116,12 @@ func QuerySceneCounts(ctx context.Context, client *http.Client, graphqlURL, apiK
 }
 
 func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey, sceneID string) (SceneCard, error) {
+	sceneArg := fmt.Sprintf("%q", sceneID)
+	if n, err := strconv.Atoi(strings.TrimSpace(sceneID)); err == nil && n > 0 {
+		sceneArg = strconv.Itoa(n)
+	}
 	query := fmt.Sprintf(`query {
-  findScene(id: %q) {
+  findScene(id: %s) {
     id
     title
     date
@@ -130,7 +135,7 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
     stash_ids { stash_id }
     files { id width height duration }
   }
-}`, sceneID)
+}`, sceneArg)
 	raw, err := doQueryRaw(ctx, client, graphqlURL, apiKey, query)
 	if err != nil {
 		return SceneCard{}, err
