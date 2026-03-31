@@ -15,5 +15,5 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /out/hasharr /usr/local/bin/hasharr
 
-EXPOSE 8080
+EXPOSE 9995
 ENTRYPOINT ["/usr/local/bin/hasharr"]

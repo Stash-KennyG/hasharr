@@ -23,7 +23,7 @@ type errorResponse struct {
 }
 
 func main() {
-	addr := envOrDefault("HASHARR_ADDR", ":8080")
+	addr := envOrDefault("HASHARR_ADDR", ":9995")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthz)

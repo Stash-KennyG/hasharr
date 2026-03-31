@@ -1,5 +1,7 @@
 # hasharr
 
+[![CI](https://github.com/Stash-KennyG/hasharr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Stash-KennyG/hasharr/actions/workflows/ci.yml)
+
 `hasharr` is a container-friendly web service that computes a Stash-style video perceptual hash (`phash`) and basic media metadata from a local file path.
 
 ## API
@@ -51,10 +53,12 @@ go run ./cmd/hasharr
 Then:
 
 ```bash
-curl -s -X POST http://localhost:8080/v1/phash \
+curl -s -X POST http://localhost:9995/v1/phash \
   -H 'Content-Type: text/plain' \
   --data '"/path/to/video.mp4"'
 ```
+
+Default listen address is `:9995` (override with `HASHARR_ADDR`).
 
 ## Docker
 
@@ -67,9 +71,28 @@ docker build -t hasharr:dev .
 Run:
 
 ```bash
-docker run --rm -p 8080:8080 \
+docker run --rm -p 9995:9995 \
   -v /downloaded:/downloaded:ro \
   hasharr:dev
 ```
 
 > The container must be able to read the target media path (bind mount your media directories).
+
+## Easy Path (GHCR)
+
+Pull and run the latest image:
+
+```bash
+docker pull ghcr.io/stash-kennyg/hasharr:latest
+docker run --rm -p 9995:9995 \
+  -v /downloaded:/downloaded:ro \
+  ghcr.io/stash-kennyg/hasharr:latest
+```
+
+Test request:
+
+```bash
+curl -s -X POST http://localhost:9995/v1/phash \
+  -H 'Content-Type: text/plain' \
+  --data '"/downloaded/comp/man/vid/vid123.mp4"'
+```
