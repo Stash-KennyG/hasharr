@@ -63,9 +63,25 @@ type SceneCard struct {
 	BitRate        int64       `json:"bitRate"`
 	VideoCodec     string      `json:"videoCodec,omitempty"`
 	AudioCodec     string      `json:"audioCodec,omitempty"`
+	Files          []SceneFile `json:"files,omitempty"`
 	MarkerCount    int         `json:"markerCount"`
 	StashIDCount   int         `json:"stashIdCount"`
 	FileCount      int         `json:"fileCount"`
+}
+
+type SceneFile struct {
+	Path        string  `json:"path,omitempty"`
+	FileSize    int64   `json:"fileSize"`
+	FileModTime string  `json:"fileModifiedTime,omitempty"`
+	ResolutionX int     `json:"resolutionX"`
+	ResolutionY int     `json:"resolutionY"`
+	Duration    float64 `json:"duration"`
+	FrameRate   float64 `json:"frameRate"`
+	BitRate     int64   `json:"bitRate"`
+	VideoCodec  string  `json:"videoCodec,omitempty"`
+	AudioCodec  string  `json:"audioCodec,omitempty"`
+	Hash        string  `json:"hash,omitempty"`
+	PHash       string  `json:"phash,omitempty"`
 }
 
 type Performer struct {
@@ -250,6 +266,30 @@ func QuerySceneCard(ctx context.Context, client *http.Client, graphqlURL, apiKey
 			case "phash":
 				card.PHash = fp.Value
 			}
+		}
+		card.Files = make([]SceneFile, 0, len(payload.Files))
+		for _, file := range payload.Files {
+			sf := SceneFile{
+				Path:        file.Path,
+				FileSize:    file.Size,
+				FileModTime: file.ModTime,
+				ResolutionX: file.Width,
+				ResolutionY: file.Height,
+				Duration:    file.Duration,
+				FrameRate:   file.FrameRate,
+				BitRate:     file.BitRate,
+				VideoCodec:  file.VideoCodec,
+				AudioCodec:  file.AudioCodec,
+			}
+			for _, fp := range file.Fingerprints {
+				switch strings.ToLower(strings.TrimSpace(fp.Type)) {
+				case "oshash":
+					sf.Hash = fp.Value
+				case "phash":
+					sf.PHash = fp.Value
+				}
+			}
+			card.Files = append(card.Files, sf)
 		}
 	}
 	return card, nil
