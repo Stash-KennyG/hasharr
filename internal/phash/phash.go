@@ -10,6 +10,8 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/corona10/goimagehash"
@@ -28,8 +30,10 @@ type Result struct {
 	PHash       string  `json:"phash"`
 	ResolutionX int     `json:"resolution_x"`
 	ResolutionY int     `json:"resolution_y"`
+	Dimensions  string  `json:"dimensions"`
 	Duration    float64 `json:"duration"`
 	Bitrate     float64 `json:"bitrate"`
+	FrameRate   float64 `json:"frame_rate"`
 }
 
 type ffprobeOutput struct {
@@ -38,6 +42,8 @@ type ffprobeOutput struct {
 		Width     int    `json:"width"`
 		Height    int    `json:"height"`
 		Duration  string `json:"duration"`
+		AvgRate   string `json:"avg_frame_rate"`
+		RRate     string `json:"r_frame_rate"`
 	} `json:"streams"`
 	Format struct {
 		Duration string `json:"duration"`
@@ -70,8 +76,10 @@ func Compute(ctx context.Context, path string) (*Result, error) {
 		PHash:       fmt.Sprintf("%016x", ph),
 		ResolutionX: meta.width,
 		ResolutionY: meta.height,
+		Dimensions:  fmt.Sprintf("%d x %d", meta.width, meta.height),
 		Duration:    duration,
 		Bitrate:     bitrate,
+		FrameRate:   round(meta.frameRate, 2),
 	}, nil
 }
 
@@ -79,6 +87,7 @@ type probedMeta struct {
 	width    int
 	height   int
 	duration float64
+	frameRate float64
 }
 
 func probe(ctx context.Context, path string) (*probedMeta, error) {
@@ -104,10 +113,15 @@ func probe(ctx context.Context, path string) (*probedMeta, error) {
 	}
 
 	var width, height int
+	frameRate := 0.0
 	for _, s := range p.Streams {
 		if s.CodecType == "video" {
 			width = s.Width
 			height = s.Height
+			frameRate = parseFrameRate(s.AvgRate)
+			if frameRate <= 0 {
+				frameRate = parseFrameRate(s.RRate)
+			}
 			break
 		}
 	}
@@ -134,6 +148,7 @@ func probe(ctx context.Context, path string) (*probedMeta, error) {
 		width:    width,
 		height:   height,
 		duration: duration,
+		frameRate: frameRate,
 	}, nil
 }
 
@@ -147,6 +162,30 @@ func parseDuration(s string) (float64, error) {
 		return 0, err
 	}
 	return d, nil
+}
+
+func parseFrameRate(s string) float64 {
+	v := strings.TrimSpace(s)
+	if v == "" || v == "N/A" || v == "0/0" {
+		return 0
+	}
+	if strings.Contains(v, "/") {
+		parts := strings.SplitN(v, "/", 2)
+		if len(parts) != 2 {
+			return 0
+		}
+		num, errNum := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+		den, errDen := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+		if errNum != nil || errDen != nil || den == 0 {
+			return 0
+		}
+		return num / den
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0
+	}
+	return f
 }
 
 func generatePHash(ctx context.Context, path string, duration float64) (uint64, error) {

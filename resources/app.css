@@ -75,7 +75,7 @@
     .scene-overlay .dur { font-weight:400; opacity:.95; }
     .scene-progress { height:6px; background:#2f445a; border-top:1px solid #30445a; }
     .scene-progress > div { height:100%; width:0%; background:#2b9bd6; transition:width .08s linear; }
-    .scene-title { font-family:"Inter", sans-serif; font-weight:400; font-size:36px; height:2em; line-height:1em; margin:6px 0 4px; color:rgb(245, 248, 250); }
+    .scene-title { font-family:"Inter", sans-serif; font-weight:400; font-size:24px; height:2em; line-height:1em; margin:6px 0 4px; color:rgb(245, 248, 250); }
     .scene-meta, .scene-perfs, .scene-counts { color:#e3e9f0; font-size:12px; margin-top:6px; }
     .scene-perfs { margin-top:10px; }
     .scene-icons { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
@@ -98,7 +98,7 @@
     .scene-file:first-child { border-top:0; }
     .scene-file > summary { padding:8px 10px; color:#edf3fa; font-weight:500; background:#273645; }
     .scene-file-body { padding:8px 10px; display:grid; gap:6px; background:#2f3e4d; }
-    .pill { display:inline-block; padding:0; margin-right:12px; margin-bottom:4px; font-size:12px; line-height:1; font-weight:600; }
+    .pill { display:inline-block; padding:0; margin-right:12px; margin-bottom:4px; font-size:16px; line-height:1; font-weight:600; }
     .g-female { color:pink; }
     .g-male { color:blue; }
     .g-trans { color:#d2b8ff; }
