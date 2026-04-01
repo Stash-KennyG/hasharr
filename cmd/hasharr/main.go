@@ -1067,8 +1067,8 @@ var configPageHTML = `<!doctype html>
         + '<div class="scene-card-section">'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
-        + '<div class="scene-phash"><span class="k">PHash:</span><span class="v">' + (card.phash || '') + '</span></div>'
         + '<details class="scene-drawer"><summary>ℹ️' + drawerSuffix + '</summary><div class="scene-drawer-body">'
+        + '<div class="scene-phash"><span class="k">PHash:</span><span class="v">' + (card.phash || '') + '</span></div>'
         + '<div class="scene-file-list">'
         + drawerFiles.map((f, i) =>
           '<details class="scene-file"' + (i === 0 ? ' open' : '') + '>'
