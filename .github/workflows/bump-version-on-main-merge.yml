@@ -1,0 +1,42 @@
+name: bump-version-on-main-merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-minor-version:
+    if: ${{ github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Bump VERSION minor
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_FILE="cmd/hasharr/VERSION"
+          RAW="$(tr -d '[:space:]' < "$VERSION_FILE")"
+          if [[ ! "$RAW" =~ ^([0-9]+)\.([0-9]+)$ ]]; then
+            echo "VERSION must be in X.Y format, got: $RAW"
+            exit 1
+          fi
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          NEXT_MINOR=$((MINOR + 1))
+          NEXT_VERSION="${MAJOR}.${NEXT_MINOR}"
+          echo "$NEXT_VERSION" > "$VERSION_FILE"
+          echo "Bumped VERSION: $RAW -> $NEXT_VERSION"
+
+      - name: Commit and push bump
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "Bump version minor after main merge"
+          file_pattern: cmd/hasharr/VERSION

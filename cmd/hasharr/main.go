@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"io"
@@ -67,6 +68,10 @@ var configStore *stashconfig.Store
 var statsStore *recordstats.Store
 var resourcesDir string
 var lookupMatches = stashconfig.LookupSceneMatchesWithOptions
+var buildID = "local"
+
+//go:embed VERSION
+var versionSeriesRaw string
 
 func main() {
 	addr := envOrDefault("HASHARR_ADDR", ":9995")
@@ -120,7 +125,22 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = io.WriteString(w, configPageHTML)
+	versionSeries := strings.TrimSpace(versionSeriesRaw)
+	if versionSeries == "" {
+		versionSeries = "0.0"
+	}
+	build := strings.TrimSpace(buildID)
+	if build == "" {
+		build = "local"
+	}
+	versionText := "hasharr v." + versionSeries + "." + build
+	versionTip := ""
+	if strings.EqualFold(build, "local") {
+		versionTip = "running from local resources, outside standard build methods."
+	}
+	html := strings.ReplaceAll(configPageHTML, "__HASHARR_VERSION__", versionText)
+	html = strings.ReplaceAll(html, "__HASHARR_VERSION_TOOLTIP__", versionTip)
+	_, _ = io.WriteString(w, html)
 }
 
 func handleFavicon(w http.ResponseWriter, r *http.Request) {
@@ -828,6 +848,7 @@ var configPageHTML = `<!doctype html>
         </div>
       </div>
     </section>
+    <div class="footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
   </div>
 
   <script>

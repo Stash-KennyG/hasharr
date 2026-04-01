@@ -107,5 +107,6 @@
     .scene-file:first-child { border-top:0; }
     .scene-file > summary { padding:8px 10px; color:#edf3fa; font-weight:500; background:#273645; }
     .scene-file-body { padding:8px 10px; display:grid; gap:6px; background:#2f3e4d; }
+    .footer-version { margin-top:10px; text-align:right; color:var(--muted); font-size:12px; }
     pre { margin:10px 0 0; white-space:pre-wrap; color:#c9d0dd; }
     @media (max-width: 1000px) { .drawer-body, .browser-results { grid-template-columns:1fr; } .stats-ribbon { grid-template-columns:repeat(8, minmax(140px, 1fr)); } .brand h1 { font-size:40px; } }
