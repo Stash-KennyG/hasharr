@@ -10,6 +10,9 @@
     .stats-table td { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; white-space:nowrap; }
     .stats-table .sub { margin-bottom:4px; }
     .stats-table h2 { margin:0; font-size:24px; line-height:1.1; color:#f1f5fb; white-space:nowrap; }
+    .stats-table td:first-child { text-align:left; }
+    .stats-table td:not(:first-child):not(:last-child) { text-align:center; }
+    .stats-table td:last-child { text-align:right; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border-radius:8px; background:var(--panel2); }
     .drawer-title { font-weight:700; }
