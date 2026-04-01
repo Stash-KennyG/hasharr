@@ -40,3 +40,4 @@ jobs:
         with:
           commit_message: "Bump version minor after main merge"
           file_pattern: cmd/hasharr/VERSION
+          branch: main
