@@ -46,6 +46,9 @@
     .usage { margin-top:10px; padding-top:8px; border-top:1px dashed var(--border); color:var(--muted); font-size:12px; }
     .workflow { margin-top:12px; display:grid; grid-template-columns:1fr; gap:10px; }
     .pathbar, .curlbar { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px; }
+    .menu-link { display:block; padding:9px 12px; color:var(--text); text-decoration:none; border-top:1px solid var(--border); }
+    .menu-link:first-child { border-top:0; }
+    .menu-link:hover { background:#2a3140; }
     .pathrow { display:flex; gap:8px; align-items:center; }
     .pathrow input { margin:0; }
     .modal-backdrop { position:fixed; inset:0; background:rgba(8, 10, 14, 0.72); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px; }

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"hasharr/internal/hashservice"
 	"hasharr/internal/phash"
 	"hasharr/internal/recordstats"
 	"hasharr/internal/stashconfig"
@@ -63,9 +64,27 @@ type recordStatsRequest struct {
 	Outcome             int     `json:"outcome"`
 }
 
+type hashServiceRunRequest struct {
+	FilePath string `json:"filePath"`
+	Source   string `json:"source,omitempty"`
+	JobID    string `json:"jobId,omitempty"`
+}
+
+type hashServiceProfileRequest struct {
+	Name         string  `json:"name"`
+	Enabled      bool    `json:"enabled"`
+	RemotePath   string  `json:"remotePath"`
+	HasharrPath  string  `json:"hasharrPath"`
+	StashIndex   int     `json:"stashIndex"`
+	MaxTimeDelta float64 `json:"maxTimeDelta"`
+	MaxDistance  int     `json:"maxDistance"`
+	ApplyActions bool    `json:"applyActions"`
+}
+
 var computePHash = phash.Compute
 var configStore *stashconfig.Store
 var statsStore *recordstats.Store
+var hashServiceStore *hashservice.Store
 var resourcesDir string
 var lookupMatches = stashconfig.LookupSceneMatchesWithOptions
 var buildID = "local"
@@ -88,15 +107,25 @@ func main() {
 		log.Fatal(err)
 	}
 	statsStore = sStore
+	hsStore, err := hashservice.New(statsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	hashServiceStore = hsStore
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
+	mux.HandleFunc("/settings/stash", handleSettingsStash)
+	mux.HandleFunc("/settings/python", handleSettingsPython)
+	mux.HandleFunc("/settings/metube", handleSettingsMeTube)
+	mux.HandleFunc("/settings/integrations", handleSettingsIntegrations)
 	mux.HandleFunc("/logs", handleLogsPage)
 	mux.HandleFunc("/favicon.ico", handleFavicon)
 	mux.HandleFunc("/favicon-source.png", handleFaviconSource)
 	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/app.css", handleAppCSS)
 	mux.HandleFunc("/v1/sab-postprocess.py", handleSABPostProcessScript)
+	mux.HandleFunc("/v1/hash-service-client.py", handleHashServiceClientScript)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
 	mux.HandleFunc("/v1/phash-match", handlePHashMatch)
@@ -109,6 +138,9 @@ func main() {
 	mux.HandleFunc("/v1/stats-summary", handleRecordStatsSummary)
 	mux.HandleFunc("/v1/stats-logs", handleRecordStatsLogs)
 	mux.HandleFunc("/v1/stats-logs/clear", handleRecordStatsLogsClear)
+	mux.HandleFunc("/api/hash-service/", handleHashServiceRun)
+	mux.HandleFunc("/v1/hash-service-profiles", handleHashServiceProfiles)
+	mux.HandleFunc("/v1/hash-service-profiles/", handleHashServiceProfileByID)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -127,6 +159,35 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	renderMainPage(w, "dashboard")
+}
+
+func handleSettingsStash(w http.ResponseWriter, r *http.Request) {
+	renderMainPage(w, "stash")
+}
+
+func handleSettingsPython(w http.ResponseWriter, r *http.Request) {
+	renderMainPage(w, "integrations")
+}
+
+func handleSettingsMeTube(w http.ResponseWriter, r *http.Request) {
+	renderMainPage(w, "integrations")
+}
+
+func handleSettingsIntegrations(w http.ResponseWriter, r *http.Request) {
+	renderMainPage(w, "integrations")
+}
+
+func loadHTMLTemplate(name string) (string, error) {
+	path := filepath.Join(resourcesDir, name)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func renderMainPage(w http.ResponseWriter, section string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	versionSeries := strings.TrimSpace(versionSeriesRaw)
 	if versionSeries == "" {
@@ -141,8 +202,14 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(build, "local") {
 		versionTip = "running from local resources, outside standard build methods."
 	}
-	html := strings.ReplaceAll(configPageHTML, "__HASHARR_VERSION__", versionText)
+	tmpl, err := loadHTMLTemplate("app.html")
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to load app template")
+		return
+	}
+	html := strings.ReplaceAll(tmpl, "__HASHARR_VERSION__", versionText)
 	html = strings.ReplaceAll(html, "__HASHARR_VERSION_TOOLTIP__", versionTip)
+	html = strings.ReplaceAll(html, "__PAGE_BOOTSTRAP__", section)
 	_, _ = io.WriteString(w, html)
 }
 
@@ -165,7 +232,12 @@ func handleLogsPage(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(build, "local") {
 		versionTip = "running from local resources, outside standard build methods."
 	}
-	html := strings.ReplaceAll(logsPageHTML, "__HASHARR_VERSION__", versionText)
+	tmpl, err := loadHTMLTemplate("logs.html")
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to load logs template")
+		return
+	}
+	html := strings.ReplaceAll(tmpl, "__HASHARR_VERSION__", versionText)
 	html = strings.ReplaceAll(html, "__HASHARR_VERSION_TOOLTIP__", versionTip)
 	_, _ = io.WriteString(w, html)
 }
@@ -227,6 +299,81 @@ func handleSABPostProcessScript(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/x-python; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="sab_postProcess.py"`)
 	_, _ = io.WriteString(w, out)
+}
+
+func handleHashServiceClientScript(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	serviceID := clampIntQuery(r.URL.Query().Get("serviceID"), 1, 1, 1000000)
+	hasharrURL := strings.TrimSpace(r.URL.Query().Get("hasharrUrl"))
+	if hasharrURL == "" {
+		hasharrURL = strings.TrimSpace(r.Header.Get("Origin"))
+	}
+	if hasharrURL == "" {
+		hasharrURL = "http://hasharr:9995"
+	}
+	script := "#!/usr/bin/env python3\n" +
+		"\"\"\"hasharr hash-service client script.\n\n" +
+		"Calls hasharr POST /api/hash-service/{id} for files found in SAB complete dir.\n" +
+		"\"\"\"\n" +
+		"from __future__ import annotations\n\n" +
+		"import json\n" +
+		"import os\n" +
+		"import pathlib\n" +
+		"import urllib.request\n" +
+		"from typing import Iterable\n\n" +
+		"DEFAULT_HASHARR_URL = " + strconv.Quote(hasharrURL) + "\n" +
+		"DEFAULT_SERVICE_ID = " + strconv.Itoa(serviceID) + "\n\n" +
+		"VIDEO_EXTS = {'.mp4','.mkv','.avi','.wmv','.mov','.webm','.m4v','.ts','.m2ts','.flv'}\n\n" +
+		"def iter_video_files(root: pathlib.Path) -> Iterable[pathlib.Path]:\n" +
+		"    for p in root.rglob('*'):\n" +
+		"        if not p.is_file():\n" +
+		"            continue\n" +
+		"        if p.suffix.lower() in VIDEO_EXTS:\n" +
+		"            yield p\n\n" +
+		"def call_hasharr(file_path: pathlib.Path) -> int:\n" +
+		"    payload = {\n" +
+		"        'filePath': str(file_path),\n" +
+		"        'source': 'python-client',\n" +
+		"        'jobId': os.environ.get('SAB_NZO_ID',''),\n" +
+		"    }\n" +
+		"    data = json.dumps(payload).encode('utf-8')\n" +
+		"    req = urllib.request.Request(\n" +
+		"        f\"{DEFAULT_HASHARR_URL.rstrip('/')}/api/hash-service/{DEFAULT_SERVICE_ID}\",\n" +
+		"        data=data,\n" +
+		"        headers={'Content-Type':'application/json'},\n" +
+		"        method='POST',\n" +
+		"    )\n" +
+		"    with urllib.request.urlopen(req, timeout=30) as resp:\n" +
+		"        return int(resp.status)\n\n" +
+		"def main() -> int:\n" +
+		"    complete_dir = os.environ.get('SAB_COMPLETE_DIR','').strip()\n" +
+		"    if not complete_dir:\n" +
+		"        print('[hasharr-client] SAB_COMPLETE_DIR missing')\n" +
+		"        return 0\n" +
+		"    root = pathlib.Path(complete_dir)\n" +
+		"    if not root.exists():\n" +
+		"        print(f'[hasharr-client] directory missing: {root}')\n" +
+		"        return 0\n" +
+		"    files = list(iter_video_files(root))\n" +
+		"    if not files:\n" +
+		"        print('[hasharr-client] no video files found')\n" +
+		"        return 0\n" +
+		"    for f in files:\n" +
+		"        try:\n" +
+		"            code = call_hasharr(f)\n" +
+		"            print(f'[hasharr-client] {f.name}: status={code}')\n" +
+		"        except Exception as exc:\n" +
+		"            print(f'[hasharr-client] error for {f}: {exc}')\n" +
+		"    return 0\n\n" +
+		"if __name__ == '__main__':\n" +
+		"    raise SystemExit(main())\n"
+
+	w.Header().Set("Content-Type", "text/x-python; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="hash_service_client.py"`)
+	_, _ = io.WriteString(w, script)
 }
 
 func injectPythonDefaults(src, cfg string) string {
@@ -361,6 +508,290 @@ func handleRecordStatsLogsClear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func handleHashServiceProfiles(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := hashServiceStore.List(r.Context())
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, rows)
+	case http.MethodPost:
+		var req hashServiceProfileRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json body")
+			return
+		}
+		out, err := hashServiceStore.Upsert(r.Context(), hashservice.Profile{
+			Name:         strings.TrimSpace(req.Name),
+			Enabled:      req.Enabled,
+			RemotePath:   strings.TrimSpace(req.RemotePath),
+			HasharrPath:  strings.TrimSpace(req.HasharrPath),
+			StashIndex:   req.StashIndex,
+			MaxTimeDelta: req.MaxTimeDelta,
+			MaxDistance:  req.MaxDistance,
+			ApplyActions: req.ApplyActions,
+		})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, out)
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func handleHashServiceProfileByID(w http.ResponseWriter, r *http.Request) {
+	idRaw := strings.TrimPrefix(r.URL.Path, "/v1/hash-service-profiles/")
+	idRaw = strings.TrimSpace(idRaw)
+	id, err := strconv.ParseInt(idRaw, 10, 64)
+	if err != nil || id <= 0 {
+		writeErr(w, http.StatusBadRequest, "invalid profile id")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		out, err := hashServiceStore.Get(r.Context(), id)
+		if err != nil {
+			writeErr(w, http.StatusNotFound, "profile not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodPut:
+		var req hashServiceProfileRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json body")
+			return
+		}
+		out, err := hashServiceStore.Upsert(r.Context(), hashservice.Profile{
+			ID:           id,
+			Name:         strings.TrimSpace(req.Name),
+			Enabled:      req.Enabled,
+			RemotePath:   strings.TrimSpace(req.RemotePath),
+			HasharrPath:  strings.TrimSpace(req.HasharrPath),
+			StashIndex:   req.StashIndex,
+			MaxTimeDelta: req.MaxTimeDelta,
+			MaxDistance:  req.MaxDistance,
+			ApplyActions: req.ApplyActions,
+		})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodDelete:
+		if err := hashServiceStore.Delete(r.Context(), id); err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	idRaw := strings.TrimPrefix(r.URL.Path, "/api/hash-service/")
+	idRaw = strings.TrimSpace(idRaw)
+	id, err := strconv.ParseInt(idRaw, 10, 64)
+	if err != nil || id <= 0 {
+		writeErr(w, http.StatusBadRequest, "invalid service id")
+		return
+	}
+	profile, err := hashServiceStore.Get(r.Context(), id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "hash service profile not found")
+		return
+	}
+	if !profile.Enabled {
+		writeErr(w, http.StatusBadRequest, "hash service profile is disabled")
+		return
+	}
+
+	var req hashServiceRunRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	req.FilePath = strings.TrimSpace(req.FilePath)
+	if req.FilePath == "" {
+		writeErr(w, http.StatusBadRequest, "filePath is required")
+		return
+	}
+	if profile.RemotePath != "" && profile.HasharrPath != "" && strings.HasPrefix(req.FilePath, profile.RemotePath) {
+		req.FilePath = profile.HasharrPath + strings.TrimPrefix(req.FilePath, profile.RemotePath)
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+	hashResult, err := computePHash(ctx, req.FilePath)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	endpoints := configStore.List()
+	selected := endpoints
+	if profile.StashIndex >= 0 {
+		if profile.StashIndex >= len(endpoints) {
+			writeErr(w, http.StatusBadRequest, "profile stashIndex out of range")
+			return
+		}
+		selected = []stashconfig.Endpoint{endpoints[profile.StashIndex]}
+	}
+	if len(selected) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":        "ok",
+			"profileId":     profile.ID,
+			"lookupSkipped": "no endpoints configured",
+			"filePath":      req.FilePath,
+		})
+		return
+	}
+
+	type endpointLookup struct {
+		EndpointURL  string                        `json:"endpointUrl"`
+		PublicURL    string                        `json:"publicUrl"`
+		EndpointName string                        `json:"endpointName"`
+		APIKey       string                        `json:"-"`
+		Matches      stashconfig.SceneLookupResult `json:"matches"`
+	}
+	lookups := []endpointLookup{}
+	totalExact := 0
+	totalPartial := 0
+	for _, ep := range selected {
+		lctx, lcancel := context.WithTimeout(r.Context(), 40*time.Second)
+		lookup, err := lookupMatches(
+			lctx,
+			&http.Client{Timeout: 20 * time.Second},
+			ep.GraphQLURL,
+			ep.APIKey,
+			hashResult.PHash,
+			hashResult.Duration,
+			profile.MaxTimeDelta,
+			profile.MaxDistance,
+		)
+		lcancel()
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		totalExact += len(lookup.ExactMatches)
+		totalPartial += len(lookup.PartialMatches)
+		lookups = append(lookups, endpointLookup{
+			EndpointURL:  ep.GraphQLURL,
+			PublicURL:    ep.PublicURL,
+			EndpointName: ep.Name,
+			APIKey:       ep.APIKey,
+			Matches:      lookup,
+		})
+	}
+
+	action := "none"
+	outcome := 0
+	renamedTo := ""
+	reasons := []string{}
+	if profile.ApplyActions && totalExact > 0 {
+		maxY := 0
+		maxDur := 0.0
+		maxFPS := 0.0
+		for _, l := range lookups {
+			ep := l.EndpointURL
+			for _, m := range l.Matches.ExactMatches {
+				card, err := stashconfig.QuerySceneCard(r.Context(), &http.Client{Timeout: 20 * time.Second}, ep, l.APIKey, m.ID)
+				if err != nil {
+					continue
+				}
+				if card.ResolutionY > maxY {
+					maxY = card.ResolutionY
+				}
+				if card.Duration > maxDur {
+					maxDur = card.Duration
+				}
+				f := card.FrameRate
+				if f > 30 {
+					f = 30
+				}
+				if f > maxFPS {
+					maxFPS = f
+				}
+			}
+		}
+		srcFPS := hashResult.FrameRate
+		if srcFPS > 30 {
+			srcFPS = 30
+		}
+		if hashResult.ResolutionY > maxY {
+			reasons = append(reasons, "Larger Resolution Detected")
+			outcome |= 4
+		}
+		if (hashResult.Duration - maxDur) > 1 {
+			reasons = append(reasons, "Longer Duration Detected")
+			outcome |= 2
+		}
+		if srcFPS > maxFPS {
+			reasons = append(reasons, "Higher FPS Detected")
+			outcome |= 1
+		}
+		if len(reasons) == 0 {
+			action = "delete"
+			outcome |= 8
+			_ = os.Remove(req.FilePath)
+		} else {
+			action = "tag-exact"
+			prefix := "["
+			if (outcome & 4) != 0 {
+				prefix += "L"
+			}
+			if (outcome & 2) != 0 {
+				prefix += "D"
+			}
+			if (outcome & 1) != 0 {
+				prefix += "F"
+			}
+			prefix += "]"
+			dir := filepath.Dir(req.FilePath)
+			base := filepath.Base(req.FilePath)
+			target := filepath.Join(dir, prefix+base)
+			if err := os.Rename(req.FilePath, target); err == nil {
+				renamedTo = target
+			}
+		}
+	} else if totalPartial > 0 {
+		action = "tag-potential"
+	}
+
+	_ = statsStore.Insert(r.Context(), recordstats.Record{
+		SABNzoID:            strings.TrimSpace(req.Source + ":" + req.JobID),
+		FileName:            filepath.Base(req.FilePath),
+		FileSizeBytes:       0,
+		FileDurationSeconds: hashResult.Duration,
+		HashDurationSeconds: 0,
+		Outcome:             outcome,
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":       "ok",
+		"profileId":    profile.ID,
+		"filePath":     req.FilePath,
+		"hash":         hashResult,
+		"lookups":      lookups,
+		"exactCount":   totalExact,
+		"partialCount": totalPartial,
+		"action":       action,
+		"reasons":      reasons,
+		"outcomeCode":  outcome,
+		"renamedTo":    renamedTo,
+		"deleted":      action == "delete",
+	})
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -783,1002 +1214,3 @@ func withLogging(next http.Handler) http.Handler {
 		log.Printf("%s %s (%s)", r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
 	})
 }
-
-var configPageHTML = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>hasharr</title>
-  <link rel="icon" href="/favicon.ico" sizes="32x32" />
-  <link rel="stylesheet" href="/app.css" />
-</head>
-<body>
-  <div class="container">
-    <div class="brand">
-      <img src="/logo.png" alt="hasharr logo" />
-      <h1>hasharr</h1>
-      <a href="/logs" title="Open logs page" aria-label="Open logs page" style="margin-left:auto; display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:8px; border:1px solid var(--border); background:var(--panel2); color:#eef4fb; text-decoration:none;">
-        <svg viewBox="0 0 115.28 122.88" aria-hidden="true" style="width:24px; height:24px; fill:currentColor;">
-          <path d="M25.38,57h64.88V37.34H69.59c-2.17,0-5.19-1.17-6.62-2.6c-1.43-1.43-2.3-4.01-2.3-6.17V7.64l0,0H8.15 c-0.18,0-0.32,0.09-0.41,0.18C7.59,7.92,7.55,8.05,7.55,8.24v106.45c0,0.14,0.09,0.32,0.18,0.41c0.09,0.14,0.28,0.18,0.41,0.18 c22.78,0,58.09,0,81.51,0c0.18,0,0.17-0.09,0.27-0.18c0.14-0.09,0.33-0.28,0.33-0.41v-11.16H25.38c-4.14,0-7.56-3.4-7.56-7.56 V64.55C17.82,60.4,21.22,57,25.38,57L25.38,57z M29.49,68.38h7.43v18.15h11.63v5.92H29.49V68.38L29.49,68.38z M49.89,80.43 c0-3.93,1.09-6.99,3.28-9.17c2.19-2.19,5.24-3.28,9.15-3.28c4.01,0,7.09,1.08,9.26,3.22c2.17,2.15,3.25,5.16,3.25,9.04 c0,2.81-0.47,5.11-1.42,6.91c-0.95,1.8-2.32,3.2-4.11,4.2c-1.79,1-4.02,1.5-6.69,1.5c-2.71,0-4.96-0.43-6.74-1.29 c-1.78-0.87-3.22-2.23-4.32-4.11C50.44,85.58,49.89,83.24,49.89,80.43L49.89,80.43z M57.31,80.44c0,2.43,0.45,4.17,1.36,5.23 c0.91,1.06,2.14,1.59,3.7,1.59c1.6,0,2.84-0.52,3.71-1.56c0.88-1.04,1.32-2.9,1.32-5.6c0-2.26-0.46-3.92-1.37-4.96 c-0.92-1.05-2.16-1.57-3.73-1.57c-1.5,0-2.71,0.53-3.62,1.59C57.77,76.24,57.31,77.99,57.31,80.44L57.31,80.44z M90.42,83.74v-5.01 h11.49v10.23c-2.2,1.5-4.15,2.53-5.83,3.07c-1.69,0.54-3.7,0.81-6.02,0.81c-2.86,0-5.19-0.49-6.99-1.46 c-1.8-0.97-3.19-2.42-4.18-4.35c-0.99-1.92-1.48-4.13-1.48-6.63c0-2.63,0.54-4.91,1.62-6.85c1.08-1.94,2.67-3.41,4.76-4.42 c1.63-0.78,3.83-1.17,6.58-1.17c2.66,0,4.64,0.24,5.96,0.72c1.32,0.48,2.41,1.23,3.28,2.24c0.87,1.01,1.52,2.3,1.96,3.85 l-7.16,1.29c-0.3-0.91-0.8-1.61-1.5-2.09c-0.71-0.49-1.6-0.73-2.7-0.73c-1.62,0-2.92,0.57-3.89,1.7c-0.97,1.13-1.45,2.92-1.45,5.37 c0,2.6,0.49,4.46,1.47,5.57c0.97,1.11,2.34,1.68,4.09,1.68c0.83,0,1.62-0.12,2.37-0.36c0.75-0.24,1.61-0.65,2.59-1.22v-2.25H90.42 L90.42,83.74z M97.79,57h9.93c4.16,0,7.56,3.41,7.56,7.56v31.42c0,4.15-3.41,7.56-7.56,7.56h-9.93v13.55c0,1.61-0.65,3.04-1.7,4.1 c-1.06,1.06-2.49,1.7-4.1,1.7c-29.44,0-56.59,0-86.18,0c-1.61,0-3.04-0.64-4.1-1.7c-1.06-1.06-1.7-2.49-1.7-4.1V5.85 c0-1.61,0.65-3.04,1.7-4.1c1.06-1.06,2.53-1.7,4.1-1.7h58.72C64.66,0,64.8,0,64.94,0c0.64,0,1.29,0.28,1.75,0.69h0.09 c0.09,0.05,0.14,0.09,0.23,0.18l29.99,30.36c0.51,0.51,0.88,1.2,0.88,1.98c0,0.23-0.05,0.41-0.09,0.65V57L97.79,57z M67.52,27.97 V8.94l21.43,21.7H70.19c-0.74,0-1.38-0.32-1.89-0.78C67.84,29.4,67.52,28.71,67.52,27.97L67.52,27.97z"></path>
-        </svg>
-      </a>
-    </div>
-
-    <section class="stats-ribbon">
-      <table class="stats-table">
-        <tr>
-          <td title="Total number of per-file hash stats records."><div class="sub">Hashes</div><h2 id="statHashCount">0</h2></td>
-          <td title="Sum of processed source file sizes in record-stats."><div class="sub">Data Hashed</div><h2 id="statDataSum">0 B</h2></td>
-          <td title="Count of files deleted by exact-match quality logic."><div class="sub">Deletes</div><h2 id="statDeleteCount">0</h2></td>
-          <td title="Count of files tagged with L (larger resolution)."><div class="sub">L Tags</div><h2 id="statLCount">0</h2></td>
-          <td title="Count of files tagged with F (higher fps)."><div class="sub">F Tags</div><h2 id="statFCount">0</h2></td>
-          <td title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></td>
-          <td title="Sum of source video durations from record-stats."><div class="sub">Video Duration</div><h2 id="statVideoSum">0s</h2></td>
-          <td title="Sum of hash processing elapsed time from record-stats."><div class="sub">Hash Time</div><h2 id="statHashTimeSum">0s</h2></td>
-          <td title="Earliest timestamp in the stats table."><div class="sub">Since</div><h2 id="statSince">-</h2></td>
-        </tr>
-      </table>
-    </section>
-
-    <section class="panel collapsed" id="aboutDrawer">
-      <div class="drawer-head" id="aboutDrawerToggle">
-        <div class="drawer-title">📖 About</div>
-        <div class="carrot">▾</div>
-      </div>
-      <div class="drawer-body single">
-        <div class="sub">purpose and getting started</div>
-        <div>hasharr is designed to sit in front of manual curation work. It hashes completed downloads, checks for perceptual matches in Stash, and helps remove or tag likely duplicates before you spend time organizing content by hand.</div>
-        <div style="margin-top:8px;"><strong>Quick start</strong></div>
-        <div>1) Open <strong>⚙️ Settings</strong> and add one or more Stash GraphQL endpoints.</div>
-        <div>2) Open <strong>🐍 Configurator</strong> and set match behavior ("Stash Endpoints", "maxTimeDelta", "maxDistance").</div>
-        <div>3) Click <strong>Download Script</strong>, set the endpoint URL for your SAB environment, and save sab_postProcess.py into SABnzbd's scripts path.</div>
-        <div>4) In SABnzbd, set that script as the post-process script for jobs/categories you want filtered.</div>
-        <div>5) Use <strong>🏗 Playground</strong> to test against local files and validate matching behavior before relying on full automation.</div>
-        <div style="margin-top:8px;">See the repository README for full Docker examples, API details, and SAB integration notes.</div>
-      </div>
-    </section>
-
-    <section class="panel" id="settingsDrawer">
-      <div class="drawer-head" id="drawerToggle">
-        <div>
-          <div class="drawer-title">⚙️ Settings</div>
-          <div class="sub">stash endpoints and diagnostics</div>
-        </div>
-        <div class="carrot">▾</div>
-      </div>
-      <div class="drawer-body">
-        <div class="card">
-          <h3>Stash Endpoints</h3>
-          <div class="sub">Configured instances</div>
-          <ul id="list"></ul>
-        </div>
-        <div class="card">
-          <h3 id="formTitle">Add Endpoint</h3>
-          <div class="sub">Validated on save</div>
-          <label>Name</label>
-          <input id="name" placeholder="PrimaryStash" />
-          <label>GraphQL Url</label>
-          <input id="graphqlUrl" placeholder="http://stash.local:9999/graphql" />
-          <label>Public Url (optional)</label>
-          <input id="publicUrl" placeholder="https://stash.example.com/graphql" />
-          <label>Api Key (optional)</label>
-          <input id="apiKey" placeholder="ApiKey..." />
-          <div class="row">
-            <button class="grow" id="testBtn">Test</button>
-            <button class="primary grow" id="saveBtn">Save</button>
-            <button class="grow" id="newBtn">New</button>
-            <button class="grow" id="deleteBtn">Delete</button>
-          </div>
-          <div class="status" id="status"></div>
-          <div class="usage">
-            <div><strong>Quick usage</strong></div>
-            <div>- Add endpoint details, click <strong>Test</strong>, then <strong>Save</strong>.</div>
-            <div>- Hover endpoint name for lazy version refresh.</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="workflow">
-      <div class="panel" id="configDrawer">
-        <div class="drawer-head" id="configDrawerToggle">
-          <div class="drawer-title">🐍 Configurator</div>
-          <div class="carrot">▾</div>
-        </div>
-        <div class="drawer-body single">
-          <div class="pathbar">
-            <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
-            <div class="pathrow">
-              <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
-              <select id="stashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
-                <option value="-1">All</option>
-              </select>
-              <label style="margin:0;min-width:95px;">maxTimeDelta</label>
-              <input id="maxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
-              <label style="margin:0;min-width:88px;">maxDistance</label>
-              <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
-              <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
-              <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="panel" id="playgroundDrawer">
-        <div class="drawer-head" id="playgroundDrawerToggle">
-          <div class="drawer-title">🏗 Playground</div>
-          <div class="carrot">▾</div>
-        </div>
-        <div class="drawer-body single">
-          <div class="curlbar">
-            <div class="sub">generated curl command</div>
-            <div class="mono" id="curlCmd">Select a file to generate curl command.</div>
-          </div>
-          <div class="pathbar">
-            <div class="sub">path</div>
-            <div class="pathrow">
-              <button id="upBtn">Up</button>
-              <input id="pathInput" />
-              <button class="primary" id="hashBtn">Hash</button>
-            </div>
-          </div>
-          <div class="browser-results">
-            <div class="card">
-              <table>
-                <thead><tr><th id="nameSortHead" title="Sort by name">Name</th><th id="sizeSortHead" title="Sort by size">Size</th><th id="modifiedSortHead" title="Sort by modified date">Date Modified</th></tr></thead>
-                <tbody id="fileRows"></tbody>
-              </table>
-            </div>
-            <div class="results">
-              <div class="sub">results</div>
-              <div class="spinner" id="spinner"></div>
-              <div id="cards" class="cards"></div>
-              <div id="rawDrawer" class="collapsed">
-                <div class="raw-drawer-head" id="rawToggle"><span>Raw JSON</span><span class="raw-caret">▾</span></div>
-                <div class="raw-body"><pre id="resultJson">Results</pre></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-    <div id="sabModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="sabModalTitle">
-      <div class="modal-card">
-        <h3 id="sabModalTitle">Download SAB Post-Process Script</h3>
-        <div class="sub" style="text-transform:none; letter-spacing:normal;">
-          Please specify endpoint URL. If running it in a container it is suggested to use your container name and leave it as http://hasharr:9995.
-        </div>
-        <label for="sabModalEndpoint">Endpoint URL</label>
-        <input id="sabModalEndpoint" type="text" placeholder="https://hasharr:9995" />
-        <div class="row modal-actions">
-          <button id="sabModalCancelBtn" class="grow">Cancel</button>
-          <button id="sabModalDetectBtn" class="grow">Detect URL</button>
-          <button id="sabModalDownloadBtn" class="primary grow">Download</button>
-        </div>
-      </div>
-    </div>
-    <div class="sub footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
-  </div>
-
-  <script>
-    let endpoints = [];
-    const versionLoaded = new Set();
-    let selectedId = null;
-    let currentPath = '';
-    let selectedEntry = null;
-    let entries = [];
-    let sortKey = 'name';
-    let sortAsc = true;
-    let aboutDrawerInit = false;
-    const el = (id) => document.getElementById(id);
-    const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
-    const showSpin = (on) => el('spinner').classList.toggle('show', !!on);
-    const prettyVersion = (v) => { const s=String(v||'').trim(); return !s ? '' : (s[0]==='v'||s[0]==='V'?s:('v'+s)); };
-    const fmtCount = (n) => {
-      const v = Number(n || 0);
-      if (!Number.isFinite(v)) return '0';
-      const abs = Math.abs(v);
-      const units = [
-        { s: 1e12, u: 'T' },
-        { s: 1e9, u: 'B' },
-        { s: 1e6, u: 'M' },
-        { s: 1e3, u: 'K' },
-      ];
-      for (const item of units) {
-        if (abs >= item.s) {
-          const scaled = v / item.s;
-          return scaled.toFixed(1).replace(/\.0$/, '') + item.u;
-        }
-      }
-      return Math.round(v).toLocaleString();
-    };
-    const versionTitle = (ep) => 'Version: ' + prettyVersion(ep.version);
-    const countTitle = (ep) => Number(ep.phashPercent||0).toFixed(2) + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
-
-    function clearForm(){ el('name').value=''; el('graphqlUrl').value=''; el('publicUrl').value=''; el('apiKey').value=''; selectedId=null; el('formTitle').textContent='Add Endpoint'; renderList(); }
-    function fillForm(ep){ el('name').value=ep.name; el('graphqlUrl').value=ep.graphqlUrl; el('publicUrl').value=ep.publicUrl||''; el('apiKey').value=ep.apiKey||''; selectedId=ep.id; el('formTitle').textContent='Edit Endpoint'; renderList(); }
-
-    async function loadEndpoints(){
-      status('Refreshing endpoint metrics...');
-      const res = await fetch('/v1/stash-endpoints?refresh=1');
-      const out = await res.json();
-      if (!res.ok){ status(out.error || 'Refresh failed','err'); return; }
-      endpoints = out;
-      renderList();
-      renderStashIndexOptions();
-      status('Metrics refreshed','ok');
-
-      const drawer = el('settingsDrawer');
-      if (endpoints.length === 0) drawer.classList.remove('collapsed');
-      else drawer.classList.add('collapsed');
-    }
-
-    function renderStashIndexOptions(){
-      const sel = el('stashIndex');
-      const prev = sel.value;
-      sel.innerHTML = '';
-      const all = document.createElement('option');
-      all.value = '-1';
-      all.textContent = 'All';
-      sel.appendChild(all);
-      endpoints.forEach((ep, i) => {
-        const opt = document.createElement('option');
-        opt.value = String(i);
-        opt.textContent = ep.name;
-        sel.appendChild(opt);
-      });
-      sel.value = [...sel.options].some(o => o.value === prev) ? prev : '-1';
-      updateCurl();
-    }
-
-    function renderList(){
-      const list = el('list'); list.innerHTML='';
-      for (const ep of endpoints){
-        const li=document.createElement('li');
-        const row=document.createElement('div'); row.className='item';
-        const name=document.createElement('span'); name.className='item-name'; name.textContent=ep.name; name.title=versionTitle(ep);
-        name.onmouseenter = async () => {
-          if (versionLoaded.has(ep.id)) return;
-          try {
-            const res = await fetch('/v1/stash-endpoints/' + ep.id + '/version');
-            const out = await res.json();
-            if (res.ok && out.version){ versionLoaded.add(ep.id); ep.version = out.version; name.title = versionTitle(ep); }
-          } catch(_) {}
-        };
-        const count=document.createElement('span'); count.className='item-count'; count.textContent=fmtCount(ep.sceneCount); count.title=countTitle(ep);
-        row.appendChild(name); row.appendChild(count); li.appendChild(row);
-        if (ep.id===selectedId) li.classList.add('active');
-        li.onclick=()=>fillForm(ep);
-        list.appendChild(li);
-      }
-    }
-
-    async function saveEndpoint(){
-      status('Validating endpoint...');
-      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), publicUrl:el('publicUrl').value.trim(), apiKey:el('apiKey').value.trim() };
-      if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
-      const url = selectedId ? '/v1/stash-endpoints/' + selectedId : '/v1/stash-endpoints';
-      const method = selectedId ? 'PUT' : 'POST';
-      const res = await fetch(url,{ method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      const out = await res.json();
-      if (!res.ok){ status(out.error || 'Save failed','err'); return; }
-      status('Saved and validated: ' + out.name + ' ' + prettyVersion(out.version), 'ok');
-      await loadEndpoints();
-      fillForm(out);
-    }
-
-    async function testEndpoint(){
-      status('Testing endpoint...');
-      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), publicUrl:el('publicUrl').value.trim(), apiKey:el('apiKey').value.trim() };
-      if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
-      const res = await fetch('/v1/stash-endpoints-test',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      const out = await res.json();
-      if (!res.ok){ status(out.error || 'Test failed','err'); return; }
-      status('Connection OK: ' + body.name + ' ' + prettyVersion(out.version), 'ok');
-    }
-
-    async function deleteEndpoint(){
-      if (!selectedId){ status('Select an endpoint first','err'); return; }
-      const res = await fetch('/v1/stash-endpoints/' + selectedId,{ method:'DELETE' });
-      const out = await res.json();
-      if (!res.ok){ status(out.error || 'Delete failed','err'); return; }
-      status('Deleted','ok');
-      await loadEndpoints();
-      clearForm();
-    }
-
-    function updateCurl(){
-      if (!(selectedEntry && !selectedEntry.isDir)) {
-        el('curlCmd').textContent = 'Select a file to generate curl command.';
-        return;
-      }
-      const stashIndex = Number(el('stashIndex').value || -1);
-      const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
-      const maxDistance = Number(el('maxDistance').value || 0);
-      const payload = { filePath: selectedEntry.path };
-      if (stashIndex !== -1) payload.stashIndex = stashIndex;
-      if (maxTimeDelta !== 1) payload.maxTimeDelta = maxTimeDelta;
-      if (maxDistance !== 0) payload.maxDistance = maxDistance;
-      const baseUrl = window.location.origin || 'http://localhost:9995';
-      const cmd = 'curl -s -X POST ' + baseUrl + '/v1/phash-match -H "Content-Type: application/json" --data \'' + JSON.stringify(payload) + '\'';
-      el('curlCmd').textContent = cmd;
-    }
-
-    function sabScriptURL(endpointURL){
-      const stashIndex = Number(el('stashIndex').value || -1);
-      const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
-      const maxDistance = Number(el('maxDistance').value || 0);
-      const hasharrUrl = String(endpointURL || '').trim();
-      const q = new URLSearchParams();
-      q.set('stashIndex', String(stashIndex));
-      q.set('maxTimeDelta', String(maxTimeDelta));
-      q.set('maxDistance', String(maxDistance));
-      if (hasharrUrl) q.set('hasharrUrl', hasharrUrl);
-      return '/v1/sab-postprocess.py?' + q.toString();
-    }
-
-    function openSABModal(){
-      const modal = el('sabModal');
-      const input = el('sabModalEndpoint');
-      input.value = 'https://hasharr:9995';
-      modal.classList.remove('hidden');
-      setTimeout(() => input.focus(), 0);
-    }
-
-    function closeSABModal(){
-      el('sabModal').classList.add('hidden');
-    }
-
-    function clampInt(v, fallback, min, max){
-      const n = Number.parseInt(String(v ?? ''), 10);
-      if (!Number.isFinite(n)) return fallback;
-      if (n < min) return min;
-      if (n > max) return max;
-      return n;
-    }
-
-    async function fetchSceneCard(endpointUrl, sceneId){
-      const res = await fetch('/v1/scene-card', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ endpointUrl, sceneId })
-      });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(out.error || 'scene card fetch failed');
-      return out;
-    }
-
-    function sceneURL(publicUrl, sceneId){
-      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
-      if (!base || !sceneId) return '';
-      return base + '/scenes/' + encodeURIComponent(sceneId);
-    }
-
-    function sceneImageURL(publicUrl, sceneId){
-      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
-      if (!base || !sceneId) return '';
-      return base + '/scene/' + encodeURIComponent(sceneId) + '/screenshot';
-    }
-
-    function scenePreviewURL(publicUrl, sceneId){
-      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
-      if (!base || !sceneId) return '';
-      return base + '/scene/' + encodeURIComponent(sceneId) + '/preview';
-    }
-
-    function studioImageURL(publicUrl, studioId){
-      const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
-      if (!base || !studioId) return '';
-      return base + '/studio/' + encodeURIComponent(studioId) + '/image';
-    }
-
-    function fmtDuration(sec){
-      const s = Math.max(0, Number(sec || 0));
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const r = Math.floor(s % 60);
-      if (h > 0) return String(h) + ':' + String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
-      return String(m) + ':' + String(r).padStart(2, '0');
-    }
-
-    function fmtBytes(n){
-      const b = Number(n || 0);
-      if (!Number.isFinite(b) || b <= 0) return '';
-      const units = ['B','KiB','MiB','GiB','TiB'];
-      let v = b, i = 0;
-      while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-      return (i === 0 ? String(Math.round(v)) : v.toFixed(2).replace(/\.00$/, '')) + ' ' + units[i];
-    }
-
-    function fmtBytesSI1(n){
-      const b = Number(n || 0);
-      if (!Number.isFinite(b) || b <= 0) return '0 B';
-      const units = ['B','KB','MB','GB','TB','PB'];
-      let v = b, i = 0;
-      while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
-      return (i === 0 ? String(Math.round(v)) : v.toFixed(1)) + units[i];
-    }
-
-    function fmtDate(s){
-      const v = String(s || '').trim();
-      if (!v) return '';
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return v;
-      return d.toLocaleString();
-    }
-
-    function fmtISODate(s){
-      const v = String(s || '').trim();
-      if (!v) return '';
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return v;
-      return d.toISOString();
-    }
-
-    function fmtSceneDate(s){
-      const v = String(s || '').trim();
-      if (!v) return '';
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return v;
-      return d.toLocaleDateString();
-    }
-
-    function fmtDurationLong(sec){
-      const s = Math.max(0, Number(sec || 0));
-      if (!Number.isFinite(s) || s <= 0) return '0s';
-      const units = [
-        { label: 'y', size: 31557600 },
-        { label: 'm', size: 2629800 },
-        { label: 'd', size: 86400 },
-        { label: 'h', size: 3600 },
-        { label: 'm', size: 60 },
-        { label: 's', size: 1 },
-      ];
-      let idx = units.findIndex((u) => s >= u.size);
-      if (idx === -1) idx = units.length - 1;
-
-      const majorUnit = units[idx];
-      const major = Math.floor(s / majorUnit.size);
-      if (idx === units.length - 1) return String(major) + majorUnit.label;
-
-      const nextUnit = units[idx + 1];
-      const remainder = s - (major * majorUnit.size);
-      const nextRaw = remainder / nextUnit.size;
-      const nextRounded = Math.floor(nextRaw * 10) / 10;
-      if (!(nextRounded > 0)) return String(major) + majorUnit.label;
-      return String(major) + majorUnit.label + ' ' + nextRounded.toFixed(1).replace(/\.0$/, '') + nextUnit.label;
-    }
-
-    function fmtDurationRaw(sec){
-      const s = Math.max(0, Number(sec || 0));
-      if (!Number.isFinite(s) || s <= 0) return '0s';
-      const units = [
-        { label: 'y', size: 31557600 },
-        { label: 'm', size: 2629800 },
-        { label: 'd', size: 86400 },
-        { label: 'h', size: 3600 },
-        { label: 'm', size: 60 },
-        { label: 's', size: 1 },
-      ];
-      let remain = Math.floor(s);
-      const parts = [];
-      for (const u of units) {
-        const n = Math.floor(remain / u.size);
-        if (n > 0) {
-          parts.push(String(n) + u.label);
-          remain -= n * u.size;
-        }
-      }
-      return parts.length ? parts.join(' ') : '0s';
-    }
-
-    function fmtSince(s){
-      const v = String(s || '').trim();
-      if (!v) return '-';
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return v;
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return y + '-' + m + '-' + day;
-    }
-
-    async function loadStatsSummary(){
-      try {
-        const res = await fetch('/v1/stats-summary');
-        const out = await res.json().catch(() => ({}));
-        if (!res.ok) return;
-        if (!aboutDrawerInit) {
-          aboutDrawerInit = true;
-          const hashCount = Number(out.hashCount || 0);
-          if (hashCount <= 0) el('aboutDrawer').classList.remove('collapsed');
-        }
-        el('statHashCount').textContent = fmtCount(out.hashCount || 0);
-        el('statDataSum').textContent = fmtBytesSI1(out.dataBytesSum || 0);
-        el('statDeleteCount').textContent = fmtCount(out.deleteCount || 0);
-        el('statLCount').textContent = fmtCount(out.lCount || 0);
-        el('statFCount').textContent = fmtCount(out.fCount || 0);
-        el('statDCount').textContent = fmtCount(out.dCount || 0);
-        const videoSec = Number(out.videoDurationSumSec || 0);
-        const hashSec = Number(out.hashDurationSumSec || 0);
-        el('statVideoSum').textContent = fmtDurationLong(videoSec);
-        el('statHashTimeSum').textContent = fmtDurationLong(hashSec);
-        el('statVideoSum').title = fmtDurationRaw(videoSec);
-        el('statHashTimeSum').title = fmtDurationRaw(hashSec);
-        el('statSince').textContent = fmtSince(out.since || '');
-      } catch(_) {}
-    }
-
-    async function recordUIHashStats(targetPath, result, elapsedSec){
-      const hash = (result && result.hash) ? result.hash : {};
-      const payload = {
-        sabNzoID: 'ui',
-        fileName: basename(targetPath || ''),
-        fileSizeBytes: Number(selectedEntry && selectedEntry.path === targetPath ? (selectedEntry.size || 0) : 0),
-        fileDurationSeconds: Number(hash.duration || 0),
-        hashDurationSeconds: Number(elapsedSec || 0),
-        outcome: 0
-      };
-      try {
-        await fetch('/v1/record-stats', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(payload)
-        });
-      } catch(_) {}
-    }
-
-    function normalizedFPS(v){
-      const n = Number(v || 0);
-      if (!Number.isFinite(n) || n <= 0) return 0;
-      return Math.min(n, 30);
-    }
-
-    function drawerSummarySuffix(sourceHash, card){
-      if (!sourceHash || !card) return '';
-      const out = [];
-      const sourceY = Number(sourceHash.resolution_y || 0);
-      const stashY = Number(card.resolutionY || 0);
-      if (sourceY > 0 && stashY > 0 && sourceY > stashY) out.push('Larger');
-
-      const sourceDur = Number(sourceHash.duration || 0);
-      const stashDur = Number(card.duration || 0);
-      if (sourceDur > 0 && stashDur > 0 && (sourceDur - stashDur) > 1) out.push('Longer');
-
-      const sourceFPS = normalizedFPS(sourceHash.frame_rate);
-      const stashFPS = normalizedFPS(card.frameRate);
-      if (sourceFPS > 0 && stashFPS > 0 && sourceFPS > stashFPS) out.push('FPS');
-
-      return out.length ? (' ' + out.join(' | ')) : '';
-    }
-
-    function basename(p){
-      const s = String(p || '');
-      if (!s) return '';
-      const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
-      return i >= 0 ? s.slice(i + 1) : s;
-    }
-
-    function renderFileDetails(file){
-      return ''
-        + '<div class="kv"><span class="k">Hash:</span><span class="v">' + (file.hash || '') + '</span></div>'
-        + '<div class="kv"><span class="k">Duration:</span><span class="v">' + (file.duration ? fmtDuration(file.duration) : '') + '</span></div>'
-        + '<div class="kv"><span class="k">Path:</span><span class="v">' + (file.path || '') + '</span></div>'
-        + '<div class="kv"><span class="k">File Size:</span><span class="v">' + (fmtBytes(file.fileSize) || '') + '</span></div>'
-        + '<div class="kv"><span class="k">File Modified:</span><span class="v">' + (fmtISODate(file.fileModifiedTime) || '') + '</span></div>'
-        + '<div class="kv"><span class="k">Dimensions:</span><span class="v">' + ((file.resolutionX && file.resolutionY) ? (file.resolutionX + ' x ' + file.resolutionY) : '') + '</span></div>'
-        + '<div class="kv"><span class="k">Frame Rate:</span><span class="v">' + (file.frameRate ? (Number(file.frameRate).toFixed(2) + ' fps') : '') + '</span></div>'
-        + '<div class="kv"><span class="k">Bit Rate:</span><span class="v">' + (file.bitRate ? (Number(file.bitRate / 1000000).toFixed(2) + ' mbps') : '') + '</span></div>'
-        + '<div class="kv"><span class="k">Video Codec:</span><span class="v">' + (file.videoCodec || '') + '</span></div>'
-        + '<div class="kv"><span class="k">Audio Codec:</span><span class="v">' + (file.audioCodec || '') + '</span></div>';
-    }
-
-    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match, sourceHash){
-      const iconSVG = {
-        tag: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M0 80L0 229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7L48 32C21.5 32 0 53.5 0 80zm112 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"></path></svg>',
-        user: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"></path></svg>',
-        marker: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z"></path></svg>',
-        film: '<svg viewBox="0 0 512 512" aria-hidden="true"><path d="M0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM48 368l0 32c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l0-32c0-8.8-7.2-16-16-16l-32 0c-8.8 0-16 7.2-16 16zm368-16c-8.8 0-16 7.2-16 16l0 32c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l0-32c0-8.8-7.2-16-16-16l-32 0zM48 240l0 32c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l0-32c0-8.8-7.2-16-16-16l-32 0c-8.8 0-16 7.2-16 16zm368-16c-8.8 0-16 7.2-16 16l0 32c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l0-32c0-8.8-7.2-16-16-16l-32 0zM48 112l0 32c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l0-32c0-8.8-7.2-16-16-16L64 96c-8.8 0-16 7.2-16 16zM416 96c-8.8 0-16 7.2-16 16l0 32c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l0-32c0-8.8-7.2-16-16-16l-32 0zM160 128l0 64c0 17.7 14.3 32 32 32l128 0c17.7 0 32-14.3 32-32l0-64c0-17.7-14.3-32-32-32L192 96c-17.7 0-32 14.3-32 32zm32 160c-17.7 0-32 14.3-32 32l0 64c0 17.7 14.3 32 32 32l128 0c17.7 0 32-14.3 32-32l0-64c0-17.7-14.3-32-32-32l-128 0z"></path></svg>',
-        ocount: '<svg viewBox="0 0 36 36" aria-hidden="true"><path d="M22.855.758L7.875 7.024l12.537 9.733c2.633 2.224 6.377 2.937 9.77 1.518c4.826-2.018 7.096-7.576 5.072-12.413C33.232 1.024 27.68-1.261 22.855.758zm-9.962 17.924L2.05 10.284L.137 23.529a7.993 7.993 0 0 0 2.958 7.803a8.001 8.001 0 0 0 9.798-12.65zm15.339 7.015l-8.156-4.69l-.033 9.223c-.088 2 .904 3.98 2.75 5.041a5.462 5.462 0 0 0 7.479-2.051c1.499-2.644.589-6.013-2.04-7.523z"></path></svg>',
-        stash: '<svg viewBox="0 0 640 512" aria-hidden="true"><path d="M58.9 42.1c3-6.1 9.6-9.6 16.3-8.7L320 64 564.8 33.4c6.7-.8 13.3 2.7 16.3 8.7l41.7 83.4c9 17.9-.6 39.6-19.8 45.1L439.6 217.3c-13.9 4-28.8-1.9-36.2-14.3L320 64 236.6 203c-7.4 12.4-22.3 18.3-36.2 14.3L37.1 170.6c-19.3-5.5-28.8-27.2-19.8-45.1L58.9 42.1zM321.1 128l54.9 91.4c14.9 24.8 44.6 36.6 72.5 28.6L576 211.6v167c0 22-15 41.2-36.4 46.6l-204.1 51c-10.2 2.6-20.9 2.6-31 0l-204.1-51C79 419.7 64 400.5 64 378.5v-167L191.6 248c27.8 8 57.6-3.8 72.5-28.6L318.9 128h2.2z"></path></svg>',
-        files: '<svg viewBox="0 0 384 512" aria-hidden="true"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0z"></path></svg>'
-      };
-      const perf = (card.performers || []).map((p) =>
-        '<span class="scene-performer">' + (p && p.name ? p.name : '') + '</span>'
-      ).join('');
-      const icons = [];
-      if (Number(card.tagCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.tag + '<span>' + Number(card.tagCount) + '</span></span>');
-      if (Number(card.performerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.user + '<span>' + Number(card.performerCount) + '</span></span>');
-      if (Number(card.markerCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.marker + '<span>' + Number(card.markerCount) + '</span></span>');
-      if (Number(card.groupCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.film + '<span>' + Number(card.groupCount) + '</span></span>');
-      if (Number(card.oCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.ocount + '<span>' + Number(card.oCount) + '</span></span>');
-      if (Number(card.stashIdCount || 0) > 0) icons.push('<span class="scene-ico">' + iconSVG.stash + '<span>' + Number(card.stashIdCount) + '</span></span>');
-      if (Number(card.fileCount || 0) > 1) icons.push('<span class="scene-ico">' + iconSVG.files + '<span>' + Number(card.fileCount) + '</span></span>');
-      const details = String(card.details || '').trim();
-      const files = Array.isArray(card.files) ? card.files : [];
-      const sid = card.id || match.id || '';
-      const url = sceneURL(publicUrl || endpointUrl, sid);
-      const shot = sceneImageURL(publicUrl || endpointUrl, sid);
-      const preview = scenePreviewURL(publicUrl || endpointUrl, sid);
-      const studioLogo = studioImageURL(publicUrl || endpointUrl, card.studioId);
-      const title = card.title || match.title || '(untitled)';
-      const titleHTML = title;
-      const drawerSuffix = drawerSummarySuffix(sourceHash, card);
-      const primaryFile = {
-        hash: card.hash,
-        path: card.path,
-        fileSize: card.fileSize,
-        fileModifiedTime: card.fileModifiedTime,
-        resolutionX: card.resolutionX,
-        resolutionY: card.resolutionY,
-        frameRate: card.frameRate,
-        bitRate: card.bitRate,
-        videoCodec: card.videoCodec,
-        audioCodec: card.audioCodec,
-        duration: card.duration,
-      };
-      const drawerFiles = files.length ? files.map((f, i) => {
-        if (i !== 0) return f;
-        return {
-          hash: f.hash || primaryFile.hash,
-          path: f.path || primaryFile.path,
-          fileSize: f.fileSize || primaryFile.fileSize,
-          fileModifiedTime: f.fileModifiedTime || primaryFile.fileModifiedTime,
-          resolutionX: f.resolutionX || primaryFile.resolutionX,
-          resolutionY: f.resolutionY || primaryFile.resolutionY,
-          frameRate: f.frameRate || primaryFile.frameRate,
-          bitRate: f.bitRate || primaryFile.bitRate,
-          videoCodec: f.videoCodec || primaryFile.videoCodec,
-          audioCodec: f.audioCodec || primaryFile.audioCodec,
-          duration: f.duration || primaryFile.duration,
-        };
-      }) : [primaryFile];
-      return '<div class="scene-card">'
-        + '<div class="scene-media">'
-        + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
-        + (preview ? '<video class="scene-preview" loop preload="none" muted playsinline src="' + preview + '"></video>' : '')
-        + (studioLogo ? '<div class="studio-logo"><img loading="lazy" src="' + studioLogo + '" alt="Studio logo" onerror="this.parentElement.textContent=\'Studio\';" /></div>' : '<div class="studio-logo">Studio</div>')
-        + '<div class="scene-overlay"><span class="res">' + ((card.resolutionX && card.resolutionY) ? (card.resolutionY + 'p') : '') + '</span> <span class="dur">' + (card.duration ? fmtDuration(card.duration) : '') + '</span></div>'
-        + '<div class="scene-progress"><div></div></div>'
-        + '</div>'
-        + '<div class="scene-card-section">'
-        + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
-        + '<div class="scene-title">' + titleHTML + '</div>'
-        + '<details class="scene-drawer"><summary>ℹ️' + drawerSuffix + '</summary><div class="scene-drawer-body">'
-        + '<div class="scene-phash"><span class="k">PHash:</span><span class="v">' + (card.phash || '') + '</span></div>'
-        + '<div class="scene-file-list">'
-        + drawerFiles.map((f, i) =>
-          '<details class="scene-file"' + (i === 0 ? ' open' : '') + '>'
-          + '<summary>' + (basename(f.path) || ('File ' + (i + 1))) + (i === 0 ? ' <span style="opacity:.8;">(Primary file)</span>' : '') + '</summary>'
-          + '<div class="scene-file-body">' + renderFileDetails(f) + '</div>'
-          + '</details>'
-        ).join('')
-        + '</div>'
-        //+ (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
-        + '</div></details>'
-        + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + fmtSceneDate(card.date || '') + '</span></div>'
-        + (icons.length ? '<div class="scene-icons">' + icons.join('') + '</div>' : '')
-        + '</div>'
-        + '</div>';
-    }
-
-    function wireScenePreviews(){
-      document.querySelectorAll('.scene-card .scene-media').forEach((media) => {
-        const v = media.querySelector('.scene-preview');
-        const bar = media.querySelector('.scene-progress > div');
-        if (!v || !bar) return;
-        media.onmouseenter = async () => { try { await v.play(); } catch(_) {} };
-        media.onmouseleave = () => { v.pause(); };
-        v.ontimeupdate = () => {
-          const pct = (v.duration && v.duration > 0) ? Math.min(100, Math.max(0, (v.currentTime / v.duration) * 100)) : 0;
-          bar.style.width = pct.toFixed(2) + '%';
-        };
-      });
-    }
-
-    async function renderMatchCards(result){
-      const host = el('cards');
-      host.innerHTML = '';
-      const lookups = result.lookups || [];
-      const tasks = [];
-      for (const l of lookups){
-        const m = l.matches || {};
-        const rows = [...(m.exactMatches || []), ...(m.partialMatches || [])];
-        for (const row of rows){
-          if (!row || !row.id) continue;
-          tasks.push({
-            endpointName: l.endpointName || '',
-            endpointUrl: l.endpointUrl || '',
-            publicUrl: l.publicUrl || l.endpointUrl || '',
-            match: row,
-          });
-        }
-      }
-      if (!tasks.length) {
-        host.innerHTML = '<div class="scene-meta">No scene matches found.</div>';
-        return;
-      }
-      const cards = await Promise.all(tasks.map(async (t) => {
-        try {
-          const card = await fetchSceneCard(t.endpointUrl, t.match.id);
-          return renderSceneCard(card, t.endpointName, t.endpointUrl, t.publicUrl, t.match, result.hash || {});
-        } catch (e) {
-          return '<div class="scene-card"><div class="scene-title">' + (t.match.title || t.match.id) + '</div><div class="scene-meta">Failed to fetch scene card: ' + String(e.message || e) + '</div></div>';
-        }
-      }));
-      host.innerHTML = cards.join('');
-      wireScenePreviews();
-    }
-
-    async function loadDir(path){
-      const q = path ? ('?path=' + encodeURIComponent(path)) : '';
-      const res = await fetch('/v1/fs/list' + q);
-      const out = await res.json();
-      if (!res.ok){ el('resultJson').textContent = JSON.stringify(out, null, 2); return; }
-      currentPath = out.path; entries = out.entries || []; selectedEntry = null;
-      el('pathInput').value = currentPath;
-      renderEntries();
-      updateCurl();
-    }
-
-    function renderEntries(){
-      const tbody = el('fileRows'); tbody.innerHTML='';
-      const sorted = [...entries].sort((a, b) => {
-        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-        let cmp = 0;
-        if (sortKey === 'size') {
-          cmp = Number(a.size || 0) - Number(b.size || 0);
-        } else if (sortKey === 'modified') {
-          cmp = String(a.modified || '').localeCompare(String(b.modified || ''));
-        } else {
-          cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
-        }
-        if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
-        return sortAsc ? cmp : -cmp;
-      });
-      for (const ent of sorted){
-        const tr = document.createElement('tr');
-        if (selectedEntry && selectedEntry.path === ent.path) tr.classList.add('selected');
-        tr.innerHTML = '<td>' + (ent.isDir ? '📁 ' : '📄 ') + ent.name + '</td><td>' + (ent.isDir ? '' : fmtCount(ent.size)) + '</td><td>' + ent.modified + '</td>';
-        tr.onclick = () => { selectedEntry = ent; el('pathInput').value = ent.path; renderEntries(); updateCurl(); };
-        tr.ondblclick = async () => { if (ent.isDir) await loadDir(ent.path); else { selectedEntry = ent; updateCurl(); await runHash(); } };
-        tbody.appendChild(tr);
-      }
-    }
-
-    function updateSortHeadLabels(){
-      const n = el('nameSortHead');
-      const s = el('sizeSortHead');
-      const m = el('modifiedSortHead');
-      n.textContent = 'Name' + (sortKey === 'name' ? (sortAsc ? ' ▲' : ' ▼') : '');
-      s.textContent = 'Size' + (sortKey === 'size' ? (sortAsc ? ' ▲' : ' ▼') : '');
-      m.textContent = 'Date Modified' + (sortKey === 'modified' ? (sortAsc ? ' ▲' : ' ▼') : '');
-    }
-
-    function setSort(key){
-      if (sortKey === key) sortAsc = !sortAsc;
-      else { sortKey = key; sortAsc = true; }
-      updateSortHeadLabels();
-      renderEntries();
-    }
-
-    async function runHash(){
-      const target = selectedEntry && !selectedEntry.isDir ? selectedEntry.path : el('pathInput').value.trim();
-      if (!target){ el('resultJson').textContent = 'No file selected.'; return; }
-      showSpin(true);
-      el('resultJson').textContent = 'Working...';
-      const startedAt = performance.now();
-      const stashIndex = Number(el('stashIndex').value || -1);
-      const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
-      const maxDistance = Number(el('maxDistance').value || 0);
-      const payload = { filePath: target };
-      if (stashIndex !== -1) payload.stashIndex = stashIndex;
-      if (maxTimeDelta !== 1) payload.maxTimeDelta = maxTimeDelta;
-      if (maxDistance !== 0) payload.maxDistance = maxDistance;
-      const res = await fetch('/v1/phash-match', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      const out = await res.json().catch(()=>({error:'Invalid response'}));
-      showSpin(false);
-      el('resultJson').textContent = JSON.stringify(out, null, 2);
-      if (res.ok) {
-        const elapsedSec = Math.max(0, (performance.now() - startedAt) / 1000);
-        await recordUIHashStats(target, out, elapsedSec);
-        await renderMatchCards(out);
-        await loadStatsSummary();
-      } else {
-        el('cards').innerHTML = '';
-      }
-    }
-
-    async function upFolder(){
-      const base = selectedEntry ? (selectedEntry.isDir ? selectedEntry.path : currentPath) : currentPath;
-      let parent = '/';
-      if (base && base !== '/') parent = base.substring(0, base.lastIndexOf('/')) || '/';
-      await loadDir(parent);
-    }
-
-    el('drawerToggle').onclick = () => el('settingsDrawer').classList.toggle('collapsed');
-    el('aboutDrawerToggle').onclick = () => el('aboutDrawer').classList.toggle('collapsed');
-    el('configDrawerToggle').onclick = () => el('configDrawer').classList.toggle('collapsed');
-    el('playgroundDrawerToggle').onclick = () => el('playgroundDrawer').classList.toggle('collapsed');
-    el('saveBtn').onclick = saveEndpoint;
-    el('testBtn').onclick = testEndpoint;
-    el('newBtn').onclick = () => { clearForm(); status(''); };
-    el('deleteBtn').onclick = deleteEndpoint;
-    el('hashBtn').onclick = runHash;
-    el('upBtn').onclick = upFolder;
-    el('nameSortHead').onclick = () => setSort('name');
-    el('sizeSortHead').onclick = () => setSort('size');
-    el('modifiedSortHead').onclick = () => setSort('modified');
-    el('rawToggle').onclick = () => el('rawDrawer').classList.toggle('collapsed');
-    el('stashIndex').onchange = updateCurl;
-    el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
-    el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
-    el('downloadSabBtn').onclick = openSABModal;
-    el('sabModalCancelBtn').onclick = closeSABModal;
-    el('sabModalDetectBtn').onclick = () => {
-      el('sabModalEndpoint').value = window.location.origin || 'http://hasharr:9995';
-    };
-    el('sabModalDownloadBtn').onclick = () => {
-      const endpointURL = String(el('sabModalEndpoint').value || '').trim();
-      window.location.href = sabScriptURL(endpointURL);
-      closeSABModal();
-    };
-    el('sabModal').onclick = (e) => {
-      if (e.target && e.target.id === 'sabModal') closeSABModal();
-    };
-    updateSortHeadLabels();
-    el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
-
-    Promise.all([loadEndpoints(), loadDir(''), loadStatsSummary()]).catch(err => { status(String(err),'err'); });
-  </script>
-</body></html>`
-
-var logsPageHTML = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>hasharr logs</title>
-  <link rel="icon" href="/favicon.ico" sizes="32x32" />
-  <link rel="stylesheet" href="/app.css" />
-</head>
-<body>
-  <div class="container logs-page">
-    <div class="brand">
-      <img src="/logo.png" alt="hasharr logo" />
-      <h1>hasharr logs</h1>
-    </div>
-    <section class="panel">
-      <div class="logs-toolbar">
-        <div class="sub">reverse chronological records from record_stats</div>
-        <div class="logs-toolbar-actions">
-          <button id="homeBtn">Back</button>
-          <button id="refreshBtn">Refresh</button>
-          <button id="clearBtn" class="danger">Clear</button>
-        </div>
-      </div>
-      <div class="logs-meta">
-        <span id="logsCount">0 rows</span>
-        <span id="logsPageInfo">Page 1</span>
-      </div>
-      <div id="logsList" class="logs-list"></div>
-      <div class="logs-pagination">
-        <button id="prevBtn">Previous</button>
-        <button id="nextBtn">Next</button>
-      </div>
-    </section>
-    <div class="sub footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
-  </div>
-  <script>
-    const PAGE_SIZE = 100;
-    let currentPage = 1;
-    let totalRows = 0;
-    let lastSig = '';
-    const el = (id) => document.getElementById(id);
-
-    function fmtCount(n){ return Number(n || 0).toLocaleString(); }
-    function fmtBytesSI1(n){
-      const b = Number(n || 0);
-      if (!Number.isFinite(b) || b <= 0) return '0 B';
-      const units = ['B','KB','MB','GB','TB','PB'];
-      let v = b, i = 0;
-      while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
-      return (i === 0 ? String(Math.round(v)) : v.toFixed(1)) + units[i];
-    }
-    function fmtISO(s){
-      const v = String(s || '').trim();
-      if (!v) return '';
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return v;
-      return d.toISOString();
-    }
-    function fmtDurationLong(sec){
-      const s = Math.max(0, Number(sec || 0));
-      if (!Number.isFinite(s) || s <= 0) return '0s';
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const r = Math.floor(s % 60);
-      if (h > 0) return String(h) + 'h ' + String(m) + 'm ' + String(r) + 's';
-      if (m > 0) return String(m) + 'm ' + String(r) + 's';
-      return String(r) + 's';
-    }
-    function outcomeFlags(outcome){
-      const o = Number(outcome || 0);
-      const out = [];
-      if ((o & 4) !== 0) out.push('L');
-      if ((o & 2) !== 0) out.push('D');
-      if ((o & 1) !== 0) out.push('F');
-      if ((o & 8) !== 0) out.push('Deleted');
-      return out.length ? out.join(' | ') : 'None';
-    }
-    function outcomeDescription(outcome){
-      const o = Number(outcome || 0);
-      const out = [];
-      if ((o & 4) !== 0) out.push('Larger Resolution Detected');
-      if ((o & 2) !== 0) out.push('Longer Duration Detected');
-      if ((o & 1) !== 0) out.push('Higher FPS Detected');
-      if ((o & 8) !== 0) out.push('Deleted');
-      return out.length ? out.join(' | ') : 'No Action';
-    }
-    function rowSig(rows){
-      return rows.map((r) => [r.id, r.createdAt, r.fileName, r.outcome].join(':')).join('|');
-    }
-    function renderRows(rows){
-      const host = el('logsList');
-      if (!rows.length) {
-        host.innerHTML = '<div class="scene-meta">No log rows found.</div>';
-        return;
-      }
-      host.innerHTML = rows.map((r) =>
-        '<details class="log-item">'
-        + '<summary><span class="log-main">' + (r.fileName || '(unknown)') + '</span><span class="log-sub">' + fmtISO(r.createdAt) + ' · ' + outcomeFlags(r.outcome) + '</span></summary>'
-        + '<div class="log-item-body">'
-        + '<div class="kv"><span class="k">ID:</span><span class="v">' + r.id + '</span></div>'
-        + '<div class="kv"><span class="k">SAB NZO ID:</span><span class="v">' + (r.sabNzoID || '') + '</span></div>'
-        + '<div class="kv"><span class="k">File Name:</span><span class="v">' + (r.fileName || '') + '</span></div>'
-        + '<div class="kv"><span class="k">File Size:</span><span class="v">' + fmtBytesSI1(r.fileSizeBytes || 0) + '</span></div>'
-        + '<div class="kv"><span class="k">Video Duration:</span><span class="v">' + fmtDurationLong(r.fileDurationSeconds || 0) + '</span></div>'
-        + '<div class="kv"><span class="k">Hash Duration:</span><span class="v">' + fmtDurationLong(r.hashDurationSeconds || 0) + '</span></div>'
-        + '<div class="kv"><span class="k">Outcome:</span><span class="v">' + outcomeDescription(r.outcome) + '</span></div>'
-        + '<div class="kv"><span class="k">Outcome Code:</span><span class="v">' + Number(r.outcome || 0) + '</span></div>'
-        + '<div class="kv"><span class="k">Created:</span><span class="v">' + fmtISO(r.createdAt) + '</span></div>'
-        + '</div>'
-        + '</details>'
-      ).join('');
-    }
-    async function loadLogs(force){
-      const res = await fetch('/v1/stats-logs?page=' + encodeURIComponent(String(currentPage)) + '&pageSize=' + PAGE_SIZE);
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok) return;
-      totalRows = Number(out.total || 0);
-      const rows = Array.isArray(out.rows) ? out.rows : [];
-      const sig = rowSig(rows) + '#' + String(totalRows) + '#' + String(currentPage);
-      if (force || sig !== lastSig) {
-        renderRows(rows);
-        lastSig = sig;
-      }
-      const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
-      el('logsCount').textContent = fmtCount(totalRows) + ' rows';
-      el('logsPageInfo').textContent = 'Page ' + String(currentPage) + ' of ' + String(totalPages);
-      el('prevBtn').disabled = currentPage <= 1;
-      el('nextBtn').disabled = currentPage >= totalPages;
-    }
-    async function clearLogs(){
-      const ok = window.confirm('This will permanently delete all log rows. Continue?');
-      if (!ok) return;
-      const res = await fetch('/v1/stats-logs/clear', { method:'POST' });
-      if (!res.ok) return;
-      currentPage = 1;
-      await loadLogs(true);
-    }
-
-    el('homeBtn').onclick = () => { window.location.href = '/'; };
-    el('refreshBtn').onclick = () => { loadLogs(true).catch(() => {}); };
-    el('clearBtn').onclick = () => { clearLogs().catch(() => {}); };
-    el('prevBtn').onclick = () => { if (currentPage > 1) { currentPage--; loadLogs(true).catch(() => {}); } };
-    el('nextBtn').onclick = () => { currentPage++; loadLogs(true).catch(() => {}); };
-
-    loadLogs(true).catch(() => {});
-    setInterval(() => { loadLogs(false).catch(() => {}); }, 2000);
-  </script>
-</body></html>`

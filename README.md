@@ -104,6 +104,50 @@ chmod +x sab_postProcess.py
 
 ## API
 
+### `POST /api/hash-service/{id}`
+
+Runs hash + match + action policy using a server-side service profile (`id`) stored in SQLite.
+
+Body:
+
+```json
+{
+  "filePath": "/downloads/example.mp4",
+  "source": "metube",
+  "jobId": "abc123"
+}
+```
+
+Behavior:
+
+- resolves profile config from SQLite (`hash_service_profiles`)
+- computes pHash and performs configured Stash lookup
+- applies action policy:
+  - exact match with no quality advantage -> delete
+  - exact match with quality advantage -> prefix rename (`[L]`, `[D]`, `[F]`, combined)
+  - partial-only match -> `tag-potential` response (no delete)
+- records outcome to stats DB
+
+### `GET /v1/hash-service-profiles`
+
+List hash service profiles used by `/api/hash-service/{id}`.
+
+### `POST /v1/hash-service-profiles`
+
+Create a profile.
+
+### `GET /v1/hash-service-profiles/{id}`
+
+Fetch one profile.
+
+### `PUT /v1/hash-service-profiles/{id}`
+
+Update one profile.
+
+### `DELETE /v1/hash-service-profiles/{id}`
+
+Delete one profile.
+
 ### `POST /v1/phash`
 
 Accepted request body formats:

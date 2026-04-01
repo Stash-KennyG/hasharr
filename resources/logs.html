@@ -1,0 +1,165 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>hasharr logs</title>
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <div class="container logs-page">
+    <div class="brand">
+      <img src="/logo.png" alt="hasharr logo" />
+      <h1>hasharr logs</h1>
+      <div class="menu-wrap" style="margin-left:auto; position:relative;">
+        <button type="button" id="menuBtn" style="margin-top:0; width:42px; height:42px; padding:0;">☰</button>
+        <div id="menuPanel" style="display:none; position:absolute; right:0; top:46px; min-width:220px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; overflow:hidden; z-index:999;">
+          <a href="/" class="menu-link">Dashboard</a>
+          <a href="/settings/stash" class="menu-link">Stash Settings</a>
+          <a href="/settings/integrations" class="menu-link">Hash Service Profiles</a>
+          <a href="/logs" class="menu-link">Logs</a>
+        </div>
+      </div>
+    </div>
+    <section class="panel">
+      <div class="logs-toolbar">
+        <div class="sub">reverse chronological records from record_stats</div>
+        <div class="logs-toolbar-actions">
+          <button id="refreshBtn">Refresh</button>
+          <button id="clearBtn" class="danger">Clear</button>
+        </div>
+      </div>
+      <div class="logs-meta">
+        <span id="logsCount">0 rows</span>
+        <span id="logsPageInfo">Page 1</span>
+      </div>
+      <div id="logsList" class="logs-list"></div>
+      <div class="logs-pagination">
+        <button id="prevBtn">Previous</button>
+        <button id="nextBtn">Next</button>
+      </div>
+    </section>
+    <div class="sub footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
+  </div>
+  <script>
+    const PAGE_SIZE = 100;
+    let currentPage = 1;
+    let totalRows = 0;
+    let lastSig = '';
+    const el = (id) => document.getElementById(id);
+
+    function fmtCount(n){ return Number(n || 0).toLocaleString(); }
+    function fmtBytesSI1(n){
+      const b = Number(n || 0);
+      if (!Number.isFinite(b) || b <= 0) return '0 B';
+      const units = ['B','KB','MB','GB','TB','PB'];
+      let v = b, i = 0;
+      while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
+      return (i === 0 ? String(Math.round(v)) : v.toFixed(1)) + units[i];
+    }
+    function fmtISO(s){
+      const v = String(s || '').trim();
+      if (!v) return '';
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return v;
+      return d.toISOString();
+    }
+    function fmtDurationLong(sec){
+      const s = Math.max(0, Number(sec || 0));
+      if (!Number.isFinite(s) || s <= 0) return '0s';
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = Math.floor(s % 60);
+      if (h > 0) return String(h) + 'h ' + String(m) + 'm ' + String(r) + 's';
+      if (m > 0) return String(m) + 'm ' + String(r) + 's';
+      return String(r) + 's';
+    }
+    function outcomeFlags(outcome){
+      const o = Number(outcome || 0);
+      const out = [];
+      if ((o & 4) !== 0) out.push('L');
+      if ((o & 2) !== 0) out.push('D');
+      if ((o & 1) !== 0) out.push('F');
+      if ((o & 8) !== 0) out.push('Deleted');
+      return out.length ? out.join(' | ') : 'None';
+    }
+    function outcomeDescription(outcome){
+      const o = Number(outcome || 0);
+      const out = [];
+      if ((o & 4) !== 0) out.push('Larger Resolution Detected');
+      if ((o & 2) !== 0) out.push('Longer Duration Detected');
+      if ((o & 1) !== 0) out.push('Higher FPS Detected');
+      if ((o & 8) !== 0) out.push('Deleted');
+      return out.length ? out.join(' | ') : 'No Action';
+    }
+    function rowSig(rows){
+      return rows.map((r) => [r.id, r.createdAt, r.fileName, r.outcome].join(':')).join('|');
+    }
+    function renderRows(rows){
+      const host = el('logsList');
+      if (!rows.length) {
+        host.innerHTML = '<div class="scene-meta">No log rows found.</div>';
+        return;
+      }
+      host.innerHTML = rows.map((r) =>
+        '<details class="log-item">'
+        + '<summary><span class="log-main">' + (r.fileName || '(unknown)') + '</span><span class="log-sub">' + fmtISO(r.createdAt) + ' · ' + outcomeFlags(r.outcome) + '</span></summary>'
+        + '<div class="log-item-body">'
+        + '<div class="kv"><span class="k">ID:</span><span class="v">' + r.id + '</span></div>'
+        + '<div class="kv"><span class="k">SAB NZO ID:</span><span class="v">' + (r.sabNzoID || '') + '</span></div>'
+        + '<div class="kv"><span class="k">File Name:</span><span class="v">' + (r.fileName || '') + '</span></div>'
+        + '<div class="kv"><span class="k">File Size:</span><span class="v">' + fmtBytesSI1(r.fileSizeBytes || 0) + '</span></div>'
+        + '<div class="kv"><span class="k">Video Duration:</span><span class="v">' + fmtDurationLong(r.fileDurationSeconds || 0) + '</span></div>'
+        + '<div class="kv"><span class="k">Hash Duration:</span><span class="v">' + fmtDurationLong(r.hashDurationSeconds || 0) + '</span></div>'
+        + '<div class="kv"><span class="k">Outcome:</span><span class="v">' + outcomeDescription(r.outcome) + '</span></div>'
+        + '<div class="kv"><span class="k">Outcome Code:</span><span class="v">' + Number(r.outcome || 0) + '</span></div>'
+        + '<div class="kv"><span class="k">Created:</span><span class="v">' + fmtISO(r.createdAt) + '</span></div>'
+        + '</div>'
+        + '</details>'
+      ).join('');
+    }
+    async function loadLogs(force){
+      const res = await fetch('/v1/stats-logs?page=' + encodeURIComponent(String(currentPage)) + '&pageSize=' + PAGE_SIZE);
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      totalRows = Number(out.total || 0);
+      const rows = Array.isArray(out.rows) ? out.rows : [];
+      const sig = rowSig(rows) + '#' + String(totalRows) + '#' + String(currentPage);
+      if (force || sig !== lastSig) {
+        renderRows(rows);
+        lastSig = sig;
+      }
+      const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+      el('logsCount').textContent = fmtCount(totalRows) + ' rows';
+      el('logsPageInfo').textContent = 'Page ' + String(currentPage) + ' of ' + String(totalPages);
+      el('prevBtn').disabled = currentPage <= 1;
+      el('nextBtn').disabled = currentPage >= totalPages;
+    }
+    async function clearLogs(){
+      const ok = window.confirm('This will permanently delete all log rows. Continue?');
+      if (!ok) return;
+      const res = await fetch('/v1/stats-logs/clear', { method:'POST' });
+      if (!res.ok) return;
+      currentPage = 1;
+      await loadLogs(true);
+    }
+
+    el('menuBtn').onclick = () => {
+      const p = el('menuPanel');
+      p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+    };
+    document.addEventListener('click', (e) => {
+      const wrap = document.querySelector('.menu-wrap');
+      if (!wrap) return;
+      if (!wrap.contains(e.target)) el('menuPanel').style.display = 'none';
+    });
+    el('refreshBtn').onclick = () => { loadLogs(true).catch(() => {}); };
+    el('clearBtn').onclick = () => { clearLogs().catch(() => {}); };
+    el('prevBtn').onclick = () => { if (currentPage > 1) { currentPage--; loadLogs(true).catch(() => {}); } };
+    el('nextBtn').onclick = () => { currentPage++; loadLogs(true).catch(() => {}); };
+
+    loadLogs(true).catch(() => {});
+    setInterval(() => { loadLogs(false).catch(() => {}); }, 2000);
+  </script>
+</body></html>
