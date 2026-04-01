@@ -297,8 +297,13 @@
       status('Metrics refreshed','ok');
 
       const drawer = el('settingsDrawer');
-      if (endpoints.length === 0) drawer.classList.remove('collapsed');
-      else drawer.classList.add('collapsed');
+      if (pageBootstrap === 'stash') {
+        drawer.classList.remove('collapsed');
+      } else if (endpoints.length === 0) {
+        drawer.classList.remove('collapsed');
+      } else {
+        drawer.classList.add('collapsed');
+      }
     }
 
     function fillStashSelect(sel){
@@ -1042,6 +1047,9 @@
       el('aboutDrawer').style.display = '';
       el('workflowSection').style.display = '';
       el('settingsDrawer').style.display = 'none';
+      el('configDrawer').style.display = 'none';
+      el('metubeSettingsPanel').style.display = 'none';
+      el('playgroundDrawer').style.display = '';
       el('settingsDrawer').classList.add('collapsed');
       el('configDrawer').classList.add('collapsed');
       el('metubeSettingsPanel').classList.add('collapsed');
@@ -1060,6 +1068,9 @@
       el('aboutDrawer').style.display = 'none';
       el('workflowSection').style.display = '';
       el('settingsDrawer').style.display = 'none';
+      el('configDrawer').style.display = '';
+      el('metubeSettingsPanel').style.display = '';
+      el('playgroundDrawer').style.display = 'none';
       el('settingsDrawer').classList.add('collapsed');
       el('configDrawer').classList.remove('collapsed');
       el('metubeSettingsPanel').classList.remove('collapsed');
