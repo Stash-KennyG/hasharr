@@ -250,7 +250,11 @@
                 <div>Any client that can send HTTP POST can target <span class="mono">/api/hash-service/{id}</span>.</div>
                 <div>Payload shape:</div>
                 <div class="mono">{ "filePath":"/path/to/file.mp4", "source":"optional", "jobId":"optional" }</div>
+                <div><strong>filePath:</strong> pre-translated path string supplied by the client runtime.</div>
+                <div><strong>source:</strong> optional client/source label (for example: metube, sabnzbd, webhook, manual) used for telemetry and traceability.</div>
+                <div><strong>jobId:</strong> optional client job identifier correlated to the originating queue/task id for logs and downstream debugging.</div>
                 <div>Pick a profile by ID on the consumer side, and keep matching policy centralized in hasharr. Hasharr will delete or tag files appropriately based on profile configuration.</div>
+                <div><strong>Path mapping behavior:</strong> if profile <span class="mono">remotePath</span> and <span class="mono">hasharrPath</span> are set, hasharr rewrites <span class="mono">filePath</span> by replacing the leading <span class="mono">remotePath</span> prefix with <span class="mono">hasharrPath</span> before processing. This is a prefix string replace used to bridge client-visible paths and hasharr/container-visible paths.</div>
               </div>
             </div>
             <div class="panel collapsed" id="profilesPythonDrawer">
