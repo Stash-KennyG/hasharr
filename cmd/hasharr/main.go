@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"hasharr/internal/hashservice"
 	"hasharr/internal/phash"
 	"hasharr/internal/recordstats"
 	"hasharr/internal/stashconfig"
@@ -63,9 +64,25 @@ type recordStatsRequest struct {
 	Outcome             int     `json:"outcome"`
 }
 
+type hashServiceRunRequest struct {
+	FilePath string `json:"filePath"`
+	Source   string `json:"source,omitempty"`
+	JobID    string `json:"jobId,omitempty"`
+}
+
+type hashServiceProfileRequest struct {
+	Name         string  `json:"name"`
+	Enabled      bool    `json:"enabled"`
+	StashIndex   int     `json:"stashIndex"`
+	MaxTimeDelta float64 `json:"maxTimeDelta"`
+	MaxDistance  int     `json:"maxDistance"`
+	ApplyActions bool    `json:"applyActions"`
+}
+
 var computePHash = phash.Compute
 var configStore *stashconfig.Store
 var statsStore *recordstats.Store
+var hashServiceStore *hashservice.Store
 var resourcesDir string
 var lookupMatches = stashconfig.LookupSceneMatchesWithOptions
 var buildID = "local"
@@ -88,9 +105,17 @@ func main() {
 		log.Fatal(err)
 	}
 	statsStore = sStore
+	hsStore, err := hashservice.New(statsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	hashServiceStore = hsStore
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
+	mux.HandleFunc("/settings/stash", handleSettingsStash)
+	mux.HandleFunc("/settings/python", handleSettingsPython)
+	mux.HandleFunc("/settings/metube", handleSettingsMeTube)
 	mux.HandleFunc("/logs", handleLogsPage)
 	mux.HandleFunc("/favicon.ico", handleFavicon)
 	mux.HandleFunc("/favicon-source.png", handleFaviconSource)
@@ -109,6 +134,9 @@ func main() {
 	mux.HandleFunc("/v1/stats-summary", handleRecordStatsSummary)
 	mux.HandleFunc("/v1/stats-logs", handleRecordStatsLogs)
 	mux.HandleFunc("/v1/stats-logs/clear", handleRecordStatsLogsClear)
+	mux.HandleFunc("/api/hash-service/", handleHashServiceRun)
+	mux.HandleFunc("/v1/hash-service-profiles", handleHashServiceProfiles)
+	mux.HandleFunc("/v1/hash-service-profiles/", handleHashServiceProfileByID)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -127,6 +155,22 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	renderMainPage(w, "")
+}
+
+func handleSettingsStash(w http.ResponseWriter, r *http.Request) {
+	renderMainPage(w, "stash")
+}
+
+func handleSettingsPython(w http.ResponseWriter, r *http.Request) {
+	renderMainPage(w, "python")
+}
+
+func handleSettingsMeTube(w http.ResponseWriter, r *http.Request) {
+	renderMainPage(w, "metube")
+}
+
+func renderMainPage(w http.ResponseWriter, section string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	versionSeries := strings.TrimSpace(versionSeriesRaw)
 	if versionSeries == "" {
@@ -143,6 +187,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 	html := strings.ReplaceAll(configPageHTML, "__HASHARR_VERSION__", versionText)
 	html = strings.ReplaceAll(html, "__HASHARR_VERSION_TOOLTIP__", versionTip)
+	html = strings.ReplaceAll(html, "__PAGE_BOOTSTRAP__", section)
 	_, _ = io.WriteString(w, html)
 }
 
@@ -361,6 +406,283 @@ func handleRecordStatsLogsClear(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func handleHashServiceProfiles(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := hashServiceStore.List(r.Context())
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, rows)
+	case http.MethodPost:
+		var req hashServiceProfileRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json body")
+			return
+		}
+		out, err := hashServiceStore.Upsert(r.Context(), hashservice.Profile{
+			Name:         strings.TrimSpace(req.Name),
+			Enabled:      req.Enabled,
+			StashIndex:   req.StashIndex,
+			MaxTimeDelta: req.MaxTimeDelta,
+			MaxDistance:  req.MaxDistance,
+			ApplyActions: req.ApplyActions,
+		})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, out)
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func handleHashServiceProfileByID(w http.ResponseWriter, r *http.Request) {
+	idRaw := strings.TrimPrefix(r.URL.Path, "/v1/hash-service-profiles/")
+	idRaw = strings.TrimSpace(idRaw)
+	id, err := strconv.ParseInt(idRaw, 10, 64)
+	if err != nil || id <= 0 {
+		writeErr(w, http.StatusBadRequest, "invalid profile id")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		out, err := hashServiceStore.Get(r.Context(), id)
+		if err != nil {
+			writeErr(w, http.StatusNotFound, "profile not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodPut:
+		var req hashServiceProfileRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json body")
+			return
+		}
+		out, err := hashServiceStore.Upsert(r.Context(), hashservice.Profile{
+			ID:           id,
+			Name:         strings.TrimSpace(req.Name),
+			Enabled:      req.Enabled,
+			StashIndex:   req.StashIndex,
+			MaxTimeDelta: req.MaxTimeDelta,
+			MaxDistance:  req.MaxDistance,
+			ApplyActions: req.ApplyActions,
+		})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodDelete:
+		if err := hashServiceStore.Delete(r.Context(), id); err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	idRaw := strings.TrimPrefix(r.URL.Path, "/api/hash-service/")
+	idRaw = strings.TrimSpace(idRaw)
+	id, err := strconv.ParseInt(idRaw, 10, 64)
+	if err != nil || id <= 0 {
+		writeErr(w, http.StatusBadRequest, "invalid service id")
+		return
+	}
+	profile, err := hashServiceStore.Get(r.Context(), id)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "hash service profile not found")
+		return
+	}
+	if !profile.Enabled {
+		writeErr(w, http.StatusBadRequest, "hash service profile is disabled")
+		return
+	}
+
+	var req hashServiceRunRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	req.FilePath = strings.TrimSpace(req.FilePath)
+	if req.FilePath == "" {
+		writeErr(w, http.StatusBadRequest, "filePath is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+	hashResult, err := computePHash(ctx, req.FilePath)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	endpoints := configStore.List()
+	selected := endpoints
+	if profile.StashIndex >= 0 {
+		if profile.StashIndex >= len(endpoints) {
+			writeErr(w, http.StatusBadRequest, "profile stashIndex out of range")
+			return
+		}
+		selected = []stashconfig.Endpoint{endpoints[profile.StashIndex]}
+	}
+	if len(selected) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":        "ok",
+			"profileId":     profile.ID,
+			"lookupSkipped": "no endpoints configured",
+			"filePath":      req.FilePath,
+		})
+		return
+	}
+
+	type endpointLookup struct {
+		EndpointURL  string                        `json:"endpointUrl"`
+		PublicURL    string                        `json:"publicUrl"`
+		EndpointName string                        `json:"endpointName"`
+		APIKey       string                        `json:"-"`
+		Matches      stashconfig.SceneLookupResult `json:"matches"`
+	}
+	lookups := []endpointLookup{}
+	totalExact := 0
+	totalPartial := 0
+	for _, ep := range selected {
+		lctx, lcancel := context.WithTimeout(r.Context(), 40*time.Second)
+		lookup, err := lookupMatches(
+			lctx,
+			&http.Client{Timeout: 20 * time.Second},
+			ep.GraphQLURL,
+			ep.APIKey,
+			hashResult.PHash,
+			hashResult.Duration,
+			profile.MaxTimeDelta,
+			profile.MaxDistance,
+		)
+		lcancel()
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		totalExact += len(lookup.ExactMatches)
+		totalPartial += len(lookup.PartialMatches)
+		lookups = append(lookups, endpointLookup{
+			EndpointURL:  ep.GraphQLURL,
+			PublicURL:    ep.PublicURL,
+			EndpointName: ep.Name,
+			APIKey:       ep.APIKey,
+			Matches:      lookup,
+		})
+	}
+
+	action := "none"
+	outcome := 0
+	renamedTo := ""
+	reasons := []string{}
+	if profile.ApplyActions && totalExact > 0 {
+		maxY := 0
+		maxDur := 0.0
+		maxFPS := 0.0
+		for _, l := range lookups {
+			ep := l.EndpointURL
+			for _, m := range l.Matches.ExactMatches {
+				card, err := stashconfig.QuerySceneCard(r.Context(), &http.Client{Timeout: 20 * time.Second}, ep, l.APIKey, m.ID)
+				if err != nil {
+					continue
+				}
+				if card.ResolutionY > maxY {
+					maxY = card.ResolutionY
+				}
+				if card.Duration > maxDur {
+					maxDur = card.Duration
+				}
+				f := card.FrameRate
+				if f > 30 {
+					f = 30
+				}
+				if f > maxFPS {
+					maxFPS = f
+				}
+			}
+		}
+		srcFPS := hashResult.FrameRate
+		if srcFPS > 30 {
+			srcFPS = 30
+		}
+		if hashResult.ResolutionY > maxY {
+			reasons = append(reasons, "Larger Resolution Detected")
+			outcome |= 4
+		}
+		if (hashResult.Duration - maxDur) > 1 {
+			reasons = append(reasons, "Longer Duration Detected")
+			outcome |= 2
+		}
+		if srcFPS > maxFPS {
+			reasons = append(reasons, "Higher FPS Detected")
+			outcome |= 1
+		}
+		if len(reasons) == 0 {
+			action = "delete"
+			outcome |= 8
+			_ = os.Remove(req.FilePath)
+		} else {
+			action = "tag-exact"
+			prefix := "["
+			if (outcome & 4) != 0 {
+				prefix += "L"
+			}
+			if (outcome & 2) != 0 {
+				prefix += "D"
+			}
+			if (outcome & 1) != 0 {
+				prefix += "F"
+			}
+			prefix += "]"
+			dir := filepath.Dir(req.FilePath)
+			base := filepath.Base(req.FilePath)
+			target := filepath.Join(dir, prefix+base)
+			if err := os.Rename(req.FilePath, target); err == nil {
+				renamedTo = target
+			}
+		}
+	} else if totalPartial > 0 {
+		action = "tag-potential"
+	}
+
+	_ = statsStore.Insert(r.Context(), recordstats.Record{
+		SABNzoID:            strings.TrimSpace(req.Source + ":" + req.JobID),
+		FileName:            filepath.Base(req.FilePath),
+		FileSizeBytes:       0,
+		FileDurationSeconds: hashResult.Duration,
+		HashDurationSeconds: 0,
+		Outcome:             outcome,
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":       "ok",
+		"profileId":    profile.ID,
+		"filePath":     req.FilePath,
+		"hash":         hashResult,
+		"lookups":      lookups,
+		"exactCount":   totalExact,
+		"partialCount": totalPartial,
+		"action":       action,
+		"reasons":      reasons,
+		"outcomeCode":  outcome,
+		"renamedTo":    renamedTo,
+		"deleted":      action == "delete",
+	})
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -798,11 +1120,16 @@ var configPageHTML = `<!doctype html>
     <div class="brand">
       <img src="/logo.png" alt="hasharr logo" />
       <h1>hasharr</h1>
-      <a href="/logs" title="Open logs page" aria-label="Open logs page" style="margin-left:auto; display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:8px; border:1px solid var(--border); background:var(--panel2); color:#eef4fb; text-decoration:none;">
-        <svg viewBox="0 0 115.28 122.88" aria-hidden="true" style="width:24px; height:24px; fill:currentColor;">
-          <path d="M25.38,57h64.88V37.34H69.59c-2.17,0-5.19-1.17-6.62-2.6c-1.43-1.43-2.3-4.01-2.3-6.17V7.64l0,0H8.15 c-0.18,0-0.32,0.09-0.41,0.18C7.59,7.92,7.55,8.05,7.55,8.24v106.45c0,0.14,0.09,0.32,0.18,0.41c0.09,0.14,0.28,0.18,0.41,0.18 c22.78,0,58.09,0,81.51,0c0.18,0,0.17-0.09,0.27-0.18c0.14-0.09,0.33-0.28,0.33-0.41v-11.16H25.38c-4.14,0-7.56-3.4-7.56-7.56 V64.55C17.82,60.4,21.22,57,25.38,57L25.38,57z M29.49,68.38h7.43v18.15h11.63v5.92H29.49V68.38L29.49,68.38z M49.89,80.43 c0-3.93,1.09-6.99,3.28-9.17c2.19-2.19,5.24-3.28,9.15-3.28c4.01,0,7.09,1.08,9.26,3.22c2.17,2.15,3.25,5.16,3.25,9.04 c0,2.81-0.47,5.11-1.42,6.91c-0.95,1.8-2.32,3.2-4.11,4.2c-1.79,1-4.02,1.5-6.69,1.5c-2.71,0-4.96-0.43-6.74-1.29 c-1.78-0.87-3.22-2.23-4.32-4.11C50.44,85.58,49.89,83.24,49.89,80.43L49.89,80.43z M57.31,80.44c0,2.43,0.45,4.17,1.36,5.23 c0.91,1.06,2.14,1.59,3.7,1.59c1.6,0,2.84-0.52,3.71-1.56c0.88-1.04,1.32-2.9,1.32-5.6c0-2.26-0.46-3.92-1.37-4.96 c-0.92-1.05-2.16-1.57-3.73-1.57c-1.5,0-2.71,0.53-3.62,1.59C57.77,76.24,57.31,77.99,57.31,80.44L57.31,80.44z M90.42,83.74v-5.01 h11.49v10.23c-2.2,1.5-4.15,2.53-5.83,3.07c-1.69,0.54-3.7,0.81-6.02,0.81c-2.86,0-5.19-0.49-6.99-1.46 c-1.8-0.97-3.19-2.42-4.18-4.35c-0.99-1.92-1.48-4.13-1.48-6.63c0-2.63,0.54-4.91,1.62-6.85c1.08-1.94,2.67-3.41,4.76-4.42 c1.63-0.78,3.83-1.17,6.58-1.17c2.66,0,4.64,0.24,5.96,0.72c1.32,0.48,2.41,1.23,3.28,2.24c0.87,1.01,1.52,2.3,1.96,3.85 l-7.16,1.29c-0.3-0.91-0.8-1.61-1.5-2.09c-0.71-0.49-1.6-0.73-2.7-0.73c-1.62,0-2.92,0.57-3.89,1.7c-0.97,1.13-1.45,2.92-1.45,5.37 c0,2.6,0.49,4.46,1.47,5.57c0.97,1.11,2.34,1.68,4.09,1.68c0.83,0,1.62-0.12,2.37-0.36c0.75-0.24,1.61-0.65,2.59-1.22v-2.25H90.42 L90.42,83.74z M97.79,57h9.93c4.16,0,7.56,3.41,7.56,7.56v31.42c0,4.15-3.41,7.56-7.56,7.56h-9.93v13.55c0,1.61-0.65,3.04-1.7,4.1 c-1.06,1.06-2.49,1.7-4.1,1.7c-29.44,0-56.59,0-86.18,0c-1.61,0-3.04-0.64-4.1-1.7c-1.06-1.06-1.7-2.49-1.7-4.1V5.85 c0-1.61,0.65-3.04,1.7-4.1c1.06-1.06,2.53-1.7,4.1-1.7h58.72C64.66,0,64.8,0,64.94,0c0.64,0,1.29,0.28,1.75,0.69h0.09 c0.09,0.05,0.14,0.09,0.23,0.18l29.99,30.36c0.51,0.51,0.88,1.2,0.88,1.98c0,0.23-0.05,0.41-0.09,0.65V57L97.79,57z M67.52,27.97 V8.94l21.43,21.7H70.19c-0.74,0-1.38-0.32-1.89-0.78C67.84,29.4,67.52,28.71,67.52,27.97L67.52,27.97z"></path>
-        </svg>
-      </a>
+      <div class="menu-wrap" style="margin-left:auto; position:relative;">
+        <button type="button" id="menuBtn" style="margin-top:0; width:42px; height:42px; padding:0;">☰</button>
+        <div id="menuPanel" style="display:none; position:absolute; right:0; top:46px; min-width:220px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; overflow:hidden; z-index:999;">
+          <a href="/" class="menu-link">Dashboard</a>
+          <a href="/settings/stash" class="menu-link">Stash Settings</a>
+          <a href="/settings/python" class="menu-link">Python Configurator</a>
+          <a href="/settings/metube" class="menu-link">MeTube Settings</a>
+          <a href="/logs" class="menu-link">Logs</a>
+        </div>
+      </div>
     </div>
 
     <section class="stats-ribbon">
@@ -971,6 +1298,7 @@ var configPageHTML = `<!doctype html>
     let sortAsc = true;
     let aboutDrawerInit = false;
     const el = (id) => document.getElementById(id);
+    const pageBootstrap = "__PAGE_BOOTSTRAP__";
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
     const showSpin = (on) => el('spinner').classList.toggle('show', !!on);
     const prettyVersion = (v) => { const s=String(v||'').trim(); return !s ? '' : (s[0]==='v'||s[0]==='V'?s:('v'+s)); };
@@ -1626,6 +1954,33 @@ var configPageHTML = `<!doctype html>
     el('sabModal').onclick = (e) => {
       if (e.target && e.target.id === 'sabModal') closeSABModal();
     };
+    el('menuBtn').onclick = () => {
+      const p = el('menuPanel');
+      p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+    };
+    document.addEventListener('click', (e) => {
+      const wrap = document.querySelector('.menu-wrap');
+      if (!wrap) return;
+      if (!wrap.contains(e.target)) el('menuPanel').style.display = 'none';
+    });
+
+    if (pageBootstrap === 'stash') {
+      el('settingsDrawer').classList.remove('collapsed');
+      el('configDrawer').classList.add('collapsed');
+      el('playgroundDrawer').classList.add('collapsed');
+    } else if (pageBootstrap === 'python') {
+      el('settingsDrawer').classList.add('collapsed');
+      el('configDrawer').classList.remove('collapsed');
+      el('playgroundDrawer').classList.add('collapsed');
+    } else if (pageBootstrap === 'metube') {
+      el('settingsDrawer').classList.add('collapsed');
+      el('configDrawer').classList.add('collapsed');
+      el('playgroundDrawer').classList.add('collapsed');
+      const metubeStub = document.createElement('section');
+      metubeStub.className = 'panel';
+      metubeStub.innerHTML = '<div class="drawer-head"><div class="drawer-title">MeTube Settings</div></div><div class="drawer-body single"><div class="card"><div class="sub">integration</div><div>MeTube service pairing is configured in MeTube and hash service profiles.</div><div style="margin-top:8px;"><a href="/v1/hash-service-profiles">View hash service profiles API</a></div></div></div>';
+      document.querySelector('.workflow').prepend(metubeStub);
+    }
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
