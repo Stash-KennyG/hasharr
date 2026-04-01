@@ -70,3 +70,24 @@ Published tags on `main` pushes:
 
 - Pull request runs validate buildability but do not publish images.
 - Lowercasing the image name avoids GHCR tag failures when owner/repo contains uppercase characters.
+
+## `bump-version-on-main-merge.yml`
+
+Automatically bumps the minor version in `cmd/hasharr/VERSION` after PR merges to `main`.
+
+### Trigger
+
+- `pull_request` with `types: [closed]` on `main`
+- runs only when `github.event.pull_request.merged == true`
+
+### Behavior
+
+1. Checks out `main`
+2. Reads `cmd/hasharr/VERSION` in `X.Y` format
+3. Increments minor (`X.Y -> X.(Y+1)`)
+4. Commits and pushes the version file update
+
+### Important configuration
+
+- Uses `stefanzweifel/git-auto-commit-action@v6`
+- Explicitly sets `branch: main` to avoid pushing to the PR head branch context

@@ -767,7 +767,7 @@ var configPageHTML = `<!doctype html>
         <div class="drawer-title">📖 About</div>
         <div class="carrot">▾</div>
       </div>
-      <div class="drawer-body" style="display:block;">
+      <div class="drawer-body single">
         <div class="sub">what this tool does</div>
         <div>hasharr computes perceptual hashes for source videos and compares them against configured Stash endpoints.</div>
         <div style="margin-top:8px;">Use <strong>🐍 Configurator</strong> to tune matching/download behavior and <strong>🏗 Playground</strong> to browse files, run hashes, and inspect results.</div>
@@ -821,7 +821,7 @@ var configPageHTML = `<!doctype html>
           <div class="drawer-title">🐍 Configurator</div>
           <div class="carrot">▾</div>
         </div>
-        <div class="drawer-body" style="display:block;">
+        <div class="drawer-body single">
           <div class="pathbar">
             <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
             <div class="pathrow">
@@ -844,7 +844,7 @@ var configPageHTML = `<!doctype html>
           <div class="drawer-title">🏗 Playground</div>
           <div class="carrot">▾</div>
         </div>
-        <div class="drawer-body" style="display:block;">
+        <div class="drawer-body single">
           <div class="curlbar">
             <div class="sub">generated curl command</div>
             <div class="mono" id="curlCmd">Select a file to generate curl command.</div>

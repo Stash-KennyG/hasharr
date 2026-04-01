@@ -17,9 +17,10 @@
     .drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border-radius:8px; background:var(--panel2); }
     .drawer-title { font-weight:700; }
     .carrot { color:var(--muted); transition:transform .15s ease; user-select:none; }
-    .collapsed .carrot { transform:rotate(-90deg); }
+    .collapsed > .drawer-head .carrot { transform:rotate(-90deg); }
     .drawer-body { margin-top:10px; display:grid; grid-template-columns:260px 1fr; gap:12px; }
-    .collapsed .drawer-body { display:none; }
+    .drawer-body.single { display:block; }
+    .collapsed > .drawer-body { display:none; }
     .card { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:10px; }
     h2 { margin:0 0 2px; font-size:28px; }
     h3 { margin:0 0 8px; font-size:18px; }
@@ -73,9 +74,9 @@
     @keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
     .raw-drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#1b2130; }
     .raw-caret { color:var(--muted); transition:transform .15s ease; user-select:none; }
-    .collapsed .raw-caret { transform:rotate(-90deg); }
+    .collapsed > .raw-drawer-head .raw-caret { transform:rotate(-90deg); }
     .raw-body { border:1px solid var(--border); border-radius:8px; padding:8px; background:#161b26; }
-    .collapsed .raw-body { display:none; }
+    .collapsed > .raw-body { display:none; }
     .cards { display:flex; flex-direction:column; gap:10px; }
     .scene-card { border:1px solid var(--border); border-radius:10px; padding:0; overflow:hidden; background:#30404d; box-shadow:0 0 0 1px rgba(16,22,26,.35); }
     .scene-media { position:relative; border:0; border-radius:0; overflow:hidden; background:#111520; aspect-ratio:16/9; }

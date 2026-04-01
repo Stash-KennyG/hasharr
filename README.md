@@ -16,14 +16,19 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 - Refreshes scene/phash metrics on each page load
 - Refreshes endpoint version lazily when hovering endpoint name
 - Settings area is a collapsible drawer (collapsed by default when endpoints exist)
+- Shows a top stats ribbon (hash count, data sum, deletes, L/F/D tags, video/hash duration sums, and since date)
+- Stats values use compact display formatting (for example: `1.2K`, `2.9M`, `3.1B`)
+- Duration sums use compact two-unit formatting (for example: `8d 7.9h`) with full raw values in tooltips
+- Includes an `📖 About` drawer between stats and settings; auto-expands on first load when no files have been hashed yet
 - Includes a manual file browser + hash runner workflow:
   - defaults to `/downloads` if present, else `/`
   - shows name, size, and modified date
   - supports up-folder navigation, single-select highlight, and double-click actions
   - generates curl command for selected file
-  - provides `Download SAB Script` to export a preconfigured post-process script using current configurator values (`stashIndex`, `maxTimeDelta`, `maxDistance`)
+  - provides `Download SAB Script` via modal (`Cancel`, `Detect URL`, `Download`) to export a preconfigured post-process script using current configurator values (`stashIndex`, `maxTimeDelta`, `maxDistance`) and an explicit endpoint URL
   - runs hash on double-click or `Hash` button
   - displays a working spinner and JSON results panel
+  - UI areas are split into drawers: `🐍 Configurator` and `🏗 Playground`
 - Uses `resources/logo.png` for branding
 - Generates `favicon.ico` from `resources/favicon_source.png` during container build
 
@@ -175,6 +180,20 @@ Outcome is a bitmask (0-15):
 
 Stored in `/config/hasharr-stats.db` (same directory as config JSON).
 
+### `GET /v1/stats-summary`
+
+Returns aggregated stats from the SQLite store, including:
+
+- `hashCount`
+- `dataBytesSum`
+- `deleteCount`
+- `lCount`
+- `fCount`
+- `dCount`
+- `videoDurationSumSec`
+- `hashDurationSumSec`
+- `since` (minimum `created_at` timestamp; UI renders as ISO `YYYY-MM-DD`)
+
 ## SABnzbd post-process script
 
 Script path in this repo:
@@ -196,6 +215,7 @@ Behavior summary:
   - `maxDistance=8`, `maxTimeDelta=min(15, duration*0.02)`
   - prefixes with `[P]` if potential match found
 - posts one `/v1/record-stats` row per processed file
+- UI hash runs also post one `/v1/record-stats` row per successful run (with `sabNzoID` set to `ui` and `outcome=0`)
 
 Exit codes:
 
