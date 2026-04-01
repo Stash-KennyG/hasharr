@@ -137,6 +137,7 @@ def post_record_stats(
         "hashDurationSeconds": float(hash_duration_seconds),
         "outcome": int(outcome_mask),
     }
+    log(f"Posting stats: {payload}")
     api_post_json(base_url, "/v1/record-stats", payload)
 
 
