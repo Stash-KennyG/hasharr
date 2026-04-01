@@ -772,8 +772,8 @@ var configPageHTML = `<!doctype html>
         <div>hasharr is designed to sit in front of manual curation work. It hashes completed downloads, checks for perceptual matches in Stash, and helps remove or tag likely duplicates before you spend time organizing content by hand.</div>
         <div style="margin-top:8px;"><strong>Quick start</strong></div>
         <div>1) Open <strong>⚙️ Settings</strong> and add one or more Stash GraphQL endpoints.</div>
-        <div>2) Open <strong>🐍 Configurator</strong> and set match behavior (`Stash Endpoints`, `maxTimeDelta`, `maxDistance`).</div>
-        <div>3) Click <strong>Download Script</strong>, set the endpoint URL for your SAB environment, and save `sab_postProcess.py` into SABnzbd's scripts path.</div>
+        <div>2) Open <strong>🐍 Configurator</strong> and set match behavior ("Stash Endpoints", "maxTimeDelta", "maxDistance").</div>
+        <div>3) Click <strong>Download Script</strong>, set the endpoint URL for your SAB environment, and save sab_postProcess.py into SABnzbd's scripts path.</div>
         <div>4) In SABnzbd, set that script as the post-process script for jobs/categories you want filtered.</div>
         <div>5) Use <strong>🏗 Playground</strong> to test against local files and validate matching behavior before relying on full automation.</div>
         <div style="margin-top:8px;">See the repository README for full Docker examples, API details, and SAB integration notes.</div>
