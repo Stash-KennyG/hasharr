@@ -1101,7 +1101,10 @@ var configPageHTML = `<!doctype html>
       if (!v) return '-';
       const d = new Date(v);
       if (Number.isNaN(d.getTime())) return v;
-      return d.toLocaleDateString();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
     }
 
     async function loadStatsSummary(){
