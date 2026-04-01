@@ -211,27 +211,36 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
         max_y = 0.0
         max_dur = 0.0
         max_fps = 0.0
+        matched_metrics: List[Tuple[float, float, float]] = []
         for endpoint_url, row in exact_rows:
             try:
                 card = fetch_card(base_url, endpoint_url, str(row.get("id")))
             except Exception as exc:
                 log(f"  warn: failed scene-card lookup for {row.get('id')}: {exc}")
                 continue
-            max_y = max(max_y, safe_num(card.get("resolutionY")))
-            max_dur = max(max_dur, safe_num(card.get("duration")))
-            max_fps = max(max_fps, normalize_fps(card.get("frameRate")))
+            y = safe_num(card.get("resolutionY"))
+            d = safe_num(card.get("duration"))
+            f = normalize_fps(card.get("frameRate"))
+            matched_metrics.append((y, d, f))
+            max_y = max(max_y, y)
+            max_dur = max(max_dur, d)
+            max_fps = max(max_fps, f)
 
         reasons: List[str] = []
         duration_delta = source_duration - max_dur
-        
-        if source_y > max_y:
-            log(f"  tag reason L: source resolution_y {source_y:.0f} > matched {max_y:.0f}")
+
+        any_lower_y = any(source_y > y for (y, _, _) in matched_metrics)
+        any_meaningfully_shorter = any((source_duration - d) > 1 for (_, d, _) in matched_metrics)
+        any_lower_fps = any(source_fps > f for (_, _, f) in matched_metrics)
+
+        if source_y >= max_y and any_lower_y:
+            log(f"  tag reason L: source resolution_y {source_y:.0f} is top-tier and exceeds lower exact matches")
             reasons.append("L")
-        if duration_delta > 1:
-            log(f"  tag reason D: source duration delta {duration_delta:.2f}s > 1.00s")
+        if source_duration >= (max_dur - 1) and any_meaningfully_shorter:
+            log("  tag reason D: source duration is top-tier and exceeds at least one exact match by >1.00s")
             reasons.append("D")
-        if source_fps > max_fps:
-            log(f"  tag reason F: source fps {source_fps:.2f} > matched {max_fps:.2f} (fps normalized, cap=30)")
+        if source_fps >= max_fps and any_lower_fps:
+            log("  tag reason F: source fps is top-tier and exceeds lower exact matches (fps normalized, cap=30)")
             reasons.append("F")
 
         has_advantage = bool(reasons)
@@ -245,7 +254,7 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             log(
                 "  exact comparison: "
                 f"resY src={source_y:.0f} vs max={max_y:.0f}; "
-                f"dur src={source_duration:.2f} vs max={max_dur:.2f}; "
+                f"dur src={source_duration:.2f} vs max={max_dur:.2f} (delta={duration_delta:.2f}s, threshold>1s); "
                 f"fps src={source_fps:.2f} vs max={max_fps:.2f}"
             )
             tagged = rename_with_prefix(path, f"[{''.join(reasons)}]")
@@ -279,10 +288,10 @@ def main(argv: List[str]) -> int:
     job_dir = get_job_dir(argv)
     if not job_dir:
         log("No SAB job directory argument received.")
-        return 0
+        clean_exit()
     if not job_dir.exists():
         log(f"Job directory does not exist: {job_dir}")
-        return 0
+        clean_exit()
 
     base_url = os.environ.get("HASHARR_URL", str(DEFAULT_HASHARR_URL)).strip()
     log(f"Using hasharr endpoint: {base_url}")
@@ -291,7 +300,7 @@ def main(argv: List[str]) -> int:
     videos = scan_videos(job_dir)
     if not videos:
         log("No eligible video files found.")
-        return 0
+        clean_exit()
 
     outcome = Outcome()
     for video in videos:
@@ -327,7 +336,7 @@ def main(argv: List[str]) -> int:
         except Exception as exc:
             log(f"Failed deleting job directory {job_dir}: {exc}")
             return 1
-        clean_exit()
+        return 0
 
     if outcome.tagged_potential > 0 and outcome.deleted == 0 and outcome.tagged_exact == 0:
         log(
@@ -336,7 +345,7 @@ def main(argv: List[str]) -> int:
             f"tagged_exact={outcome.tagged_exact}, tagged_potential={outcome.tagged_potential}, "
             f"untouched={outcome.untouched}"
         )
-        clean_exit()
+        return 0
 
     clean_exit()
 
