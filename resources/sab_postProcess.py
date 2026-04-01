@@ -336,6 +336,7 @@ def main(argv: List[str]) -> int:
         except Exception as exc:
             log(f"Failed deleting job directory {job_dir}: {exc}")
             return 1
+        log("Phash match; deleted.")
         return 0
 
     if outcome.tagged_potential > 0 and outcome.deleted == 0 and outcome.tagged_exact == 0:
@@ -345,6 +346,7 @@ def main(argv: List[str]) -> int:
             f"tagged_exact={outcome.tagged_exact}, tagged_potential={outcome.tagged_potential}, "
             f"untouched={outcome.untouched}"
         )
+        log("Phash match; potential upgrades.")
         return 0
 
     clean_exit()
