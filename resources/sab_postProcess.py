@@ -183,7 +183,6 @@ def flatten_matches(lookup_result: Dict) -> List[Tuple[str, Dict]]:
 
 
 def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
-    log(f"Processing: {path}")
     exact_payload: Dict[str, object] = {
         "filePath": str(path),
         "maxTimeDelta": float(DEFAULT_MAX_TIME_DELTA),
@@ -245,7 +244,6 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             log(f"  exact matches found; better by {''.join(reasons)} -> tagged as {tagged.name}")
             return "tagged_exact", tagged
 
-        log("  exact matches found; kept (largest by file size)")
         return "untouched", path
 
     optimistic_delta = min(15.0, source_duration * 0.02 if source_duration > 0 else 0.0)
@@ -260,7 +258,6 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
         log(f"  no exact matches; potential matches found -> tagged as {tagged.name}")
         return "tagged_potential", tagged
 
-    log("  no exact/potential matches -> left unchanged")
     return "untouched", path
 
 
@@ -274,8 +271,6 @@ def main(argv: List[str]) -> int:
         return 0
 
     base_url = os.environ.get("HASHARR_URL", "http://127.0.0.1:9995").strip()
-    log(f"Using hasharr endpoint: {base_url}")
-    log(f"Scanning directory: {job_dir}")
 
     videos = scan_videos(job_dir)
     if not videos:
@@ -300,18 +295,20 @@ def main(argv: List[str]) -> int:
             outcome.untouched += 1
 
     total = len(videos)
-    
-
     if outcome.deleted == total:
         try:
+            shutil.rmtree(job_dir)
             log(
                 "Summary: "
                 f"total={total}, deleted={outcome.deleted}, "
                 f"Deleted job directory because all eligible videos were deleted: {job_dir}"
             )
-            shutil.rmtree(job_dir)
         except Exception as exc:
-            log(f"Failed deleting job directory {job_dir}: {exc}")
+            log(
+                "Exception: "
+                f"total={total}, deleted={outcome.deleted}, "
+                f"Failed deleting job directory {job_dir}: {exc}"
+                )
             return 1
         return 0
 
