@@ -423,7 +423,7 @@ def main(argv: List[str]) -> int:
                 
             )
             shutil.rmtree(job_dir)
-            log("Empty folder deleted successfully")
+            log("  empty folder deleted successfully")
         except Exception as exc:
             log(f"Failed deleting job directory {job_dir}: {exc}")
             return 1

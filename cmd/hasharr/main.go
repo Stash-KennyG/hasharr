@@ -1088,12 +1088,27 @@ var configPageHTML = `<!doctype html>
     function fmtDurationLong(sec){
       const s = Math.max(0, Number(sec || 0));
       if (!Number.isFinite(s) || s <= 0) return '0s';
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const r = Math.floor(s % 60);
-      if (h > 0) return String(h) + 'h ' + String(m) + 'm ' + String(r) + 's';
-      if (m > 0) return String(m) + 'm ' + String(r) + 's';
-      return r.toFixed(1).replace(/\.0$/, '') + 's';
+      const units = [
+        { label: 'y', size: 31557600 },
+        { label: 'm', size: 2629800 },
+        { label: 'd', size: 86400 },
+        { label: 'h', size: 3600 },
+        { label: 'm', size: 60 },
+        { label: 's', size: 1 },
+      ];
+      let idx = units.findIndex((u) => s >= u.size);
+      if (idx === -1) idx = units.length - 1;
+
+      const majorUnit = units[idx];
+      const major = Math.floor(s / majorUnit.size);
+      if (idx === units.length - 1) return String(major) + majorUnit.label;
+
+      const nextUnit = units[idx + 1];
+      const remainder = s - (major * majorUnit.size);
+      const nextRaw = remainder / nextUnit.size;
+      const nextRounded = Math.floor(nextRaw * 10) / 10;
+      if (!(nextRounded > 0)) return String(major) + majorUnit.label;
+      return String(major) + majorUnit.label + ' ' + nextRounded.toFixed(1).replace(/\.0$/, '') + nextUnit.label;
     }
 
     function fmtSince(s){
