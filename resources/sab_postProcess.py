@@ -222,12 +222,13 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             max_fps = max(max_fps, normalize_fps(card.get("frameRate")))
 
         reasons: List[str] = []
+        duration_delta = source_duration - max_dur
         
         if source_y > max_y:
             log(f"  tag reason L: source resolution_y {source_y:.0f} > matched {max_y:.0f}")
             reasons.append("L")
-        if source_duration > max_dur:
-            log(f"  tag reason D: source duration {source_duration:.2f}s > matched {max_dur:.2f}s")
+        if duration_delta > 1:
+            log(f"  tag reason D: source duration delta {duration_delta:.2f}s > 1.00s")
             reasons.append("D")
         if source_fps > max_fps:
             log(f"  tag reason F: source fps {source_fps:.2f} > matched {max_fps:.2f} (fps normalized, cap=30)")
