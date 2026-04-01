@@ -39,8 +39,8 @@
     button.primary { background:var(--accent); color:#fff; border:0; font-weight:700; }
     button.primary:hover { background:var(--accent-hover); }
     button.primary:active { background:var(--accent-active); }
-    button.danger { background:#8f2b2b; color:#fff; border:0; font-weight:700; }
-    button.danger:hover { background:#a63232; }
+    button.danger { background:rgb(219, 55, 55); color:#fff; border:0; font-weight:700; }
+    button.danger:hover { background:rgb(229, 70, 70); }
     .status { min-height:20px; margin-top:8px; font-size:13px; }
     .ok { color:var(--ok); } .err { color:var(--err); }
     .usage { margin-top:10px; padding-top:8px; border-top:1px dashed var(--border); color:var(--muted); font-size:12px; }

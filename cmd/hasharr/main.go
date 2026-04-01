@@ -1652,7 +1652,7 @@ var logsPageHTML = `<!doctype html>
       <div class="logs-toolbar">
         <div class="sub">reverse chronological records from record_stats</div>
         <div class="logs-toolbar-actions">
-          <button id="homeBtn">Back Home</button>
+          <button id="homeBtn">Back</button>
           <button id="refreshBtn">Refresh</button>
           <button id="clearBtn" class="danger">Clear</button>
         </div>
@@ -1711,6 +1711,15 @@ var logsPageHTML = `<!doctype html>
       if ((o & 8) !== 0) out.push('Deleted');
       return out.length ? out.join(' | ') : 'None';
     }
+    function outcomeDescription(outcome){
+      const o = Number(outcome || 0);
+      const out = [];
+      if ((o & 4) !== 0) out.push('Larger Resolution Detected');
+      if ((o & 2) !== 0) out.push('Longer Duration Detected');
+      if ((o & 1) !== 0) out.push('Higher FPS Detected');
+      if ((o & 8) !== 0) out.push('Deleted');
+      return out.length ? out.join(' | ') : 'No Action';
+    }
     function rowSig(rows){
       return rows.map((r) => [r.id, r.createdAt, r.fileName, r.outcome].join(':')).join('|');
     }
@@ -1730,7 +1739,8 @@ var logsPageHTML = `<!doctype html>
         + '<div class="kv"><span class="k">File Size:</span><span class="v">' + fmtBytesSI1(r.fileSizeBytes || 0) + '</span></div>'
         + '<div class="kv"><span class="k">Video Duration:</span><span class="v">' + fmtDurationLong(r.fileDurationSeconds || 0) + '</span></div>'
         + '<div class="kv"><span class="k">Hash Duration:</span><span class="v">' + fmtDurationLong(r.hashDurationSeconds || 0) + '</span></div>'
-        + '<div class="kv"><span class="k">Outcome:</span><span class="v">' + Number(r.outcome || 0) + ' (' + outcomeFlags(r.outcome) + ')</span></div>'
+        + '<div class="kv"><span class="k">Outcome:</span><span class="v">' + outcomeDescription(r.outcome) + '</span></div>'
+        + '<div class="kv"><span class="k">Outcome Code:</span><span class="v">' + Number(r.outcome || 0) + '</span></div>'
         + '<div class="kv"><span class="k">Created:</span><span class="v">' + fmtISO(r.createdAt) + '</span></div>'
         + '</div>'
         + '</details>'
