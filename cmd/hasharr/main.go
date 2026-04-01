@@ -880,7 +880,24 @@ var configPageHTML = `<!doctype html>
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
     const showSpin = (on) => el('spinner').classList.toggle('show', !!on);
     const prettyVersion = (v) => { const s=String(v||'').trim(); return !s ? '' : (s[0]==='v'||s[0]==='V'?s:('v'+s)); };
-    const fmtCount = (n) => Number(n||0).toLocaleString();
+    const fmtCount = (n) => {
+      const v = Number(n || 0);
+      if (!Number.isFinite(v)) return '0';
+      const abs = Math.abs(v);
+      const units = [
+        { s: 1e12, u: 'T' },
+        { s: 1e9, u: 'B' },
+        { s: 1e6, u: 'M' },
+        { s: 1e3, u: 'K' },
+      ];
+      for (const item of units) {
+        if (abs >= item.s) {
+          const scaled = v / item.s;
+          return scaled.toFixed(1).replace(/\.0$/, '') + item.u;
+        }
+      }
+      return Math.round(v).toLocaleString();
+    };
     const versionTitle = (ep) => 'Version: ' + prettyVersion(ep.version);
     const countTitle = (ep) => Number(ep.phashPercent||0).toFixed(2) + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
 
