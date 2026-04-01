@@ -755,6 +755,7 @@ var configPageHTML = `<!doctype html>
       <div class="stats-item" title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></div>
       <div class="stats-item" title="Sum of source video durations from record-stats."><div class="sub">Sum of Video</div><h2 id="statVideoSum">0s</h2></div>
       <div class="stats-item" title="Sum of hash processing elapsed time from record-stats."><div class="sub">Sum of Hash Time</div><h2 id="statHashTimeSum">0s</h2></div>
+      <div class="stats-item" title="Earliest timestamp in the stats table."><div class="sub">Since</div><h2 id="statSince">-</h2></div>
     </section>
 
     <section class="panel" id="settingsDrawer">
@@ -848,7 +849,7 @@ var configPageHTML = `<!doctype html>
         </div>
       </div>
     </section>
-    <div class="footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
+    <div class="sub footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
   </div>
 
   <script>
@@ -1095,6 +1096,14 @@ var configPageHTML = `<!doctype html>
       return r.toFixed(1).replace(/\.0$/, '') + 's';
     }
 
+    function fmtSince(s){
+      const v = String(s || '').trim();
+      if (!v) return '-';
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return v;
+      return d.toLocaleDateString();
+    }
+
     async function loadStatsSummary(){
       try {
         const res = await fetch('/v1/stats-summary');
@@ -1108,6 +1117,26 @@ var configPageHTML = `<!doctype html>
         el('statDCount').textContent = fmtCount(out.dCount || 0);
         el('statVideoSum').textContent = fmtDurationLong(out.videoDurationSumSec || 0);
         el('statHashTimeSum').textContent = fmtDurationLong(out.hashDurationSumSec || 0);
+        el('statSince').textContent = fmtSince(out.since || '');
+      } catch(_) {}
+    }
+
+    async function recordUIHashStats(targetPath, result, elapsedSec){
+      const hash = (result && result.hash) ? result.hash : {};
+      const payload = {
+        sabNzoID: 'ui',
+        fileName: basename(targetPath || ''),
+        fileSizeBytes: Number(selectedEntry && selectedEntry.path === targetPath ? (selectedEntry.size || 0) : 0),
+        fileDurationSeconds: Number(hash.duration || 0),
+        hashDurationSeconds: Number(elapsedSec || 0),
+        outcome: 0
+      };
+      try {
+        await fetch('/v1/record-stats', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
       } catch(_) {}
     }
 
@@ -1350,6 +1379,7 @@ var configPageHTML = `<!doctype html>
       if (!target){ el('resultJson').textContent = 'No file selected.'; return; }
       showSpin(true);
       el('resultJson').textContent = 'Working...';
+      const startedAt = performance.now();
       const stashIndex = Number(el('stashIndex').value || -1);
       const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
       const maxDistance = Number(el('maxDistance').value || 0);
@@ -1362,6 +1392,8 @@ var configPageHTML = `<!doctype html>
       showSpin(false);
       el('resultJson').textContent = JSON.stringify(out, null, 2);
       if (res.ok) {
+        const elapsedSec = Math.max(0, (performance.now() - startedAt) / 1000);
+        await recordUIHashStats(target, out, elapsedSec);
         await renderMatchCards(out);
         await loadStatsSummary();
       } else {

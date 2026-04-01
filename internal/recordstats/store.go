@@ -32,6 +32,7 @@ type Summary struct {
 	DCount              int64   `json:"dCount"`
 	VideoDurationSumSec float64 `json:"videoDurationSumSec"`
 	HashDurationSumSec  float64 `json:"hashDurationSumSec"`
+	Since               string  `json:"since"`
 }
 
 func New(path string) (*Store, error) {
@@ -99,7 +100,8 @@ func (s *Store) Summary(ctx context.Context) (Summary, error) {
 			COALESCE(SUM(CASE WHEN (outcome & 1) != 0 THEN 1 ELSE 0 END), 0) AS f_count,
 			COALESCE(SUM(CASE WHEN (outcome & 2) != 0 THEN 1 ELSE 0 END), 0) AS d_count,
 			COALESCE(SUM(file_duration_seconds), 0) AS video_duration_sum_sec,
-			COALESCE(SUM(hash_duration_seconds), 0) AS hash_duration_sum_sec
+			COALESCE(SUM(hash_duration_seconds), 0) AS hash_duration_sum_sec,
+			COALESCE(MIN(created_at), '') AS since
 		FROM record_stats`,
 	)
 	if err := row.Scan(
@@ -111,6 +113,7 @@ func (s *Store) Summary(ctx context.Context) (Summary, error) {
 		&out.DCount,
 		&out.VideoDurationSumSec,
 		&out.HashDurationSumSec,
+		&out.Since,
 	); err != nil {
 		return Summary{}, err
 	}
