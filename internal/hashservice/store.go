@@ -53,11 +53,14 @@ func (s *Store) List(ctx context.Context) ([]Profile, error) {
 	for rows.Next() {
 		var p Profile
 		var enabled, apply int
-		if err := rows.Scan(&p.ID, &p.Name, &enabled, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &apply, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		var createdAtRaw, updatedAtRaw string
+		if err := rows.Scan(&p.ID, &p.Name, &enabled, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &apply, &createdAtRaw, &updatedAtRaw); err != nil {
 			return nil, err
 		}
 		p.Enabled = enabled != 0
 		p.ApplyActions = apply != 0
+		p.CreatedAt = parseSQLiteTime(createdAtRaw)
+		p.UpdatedAt = parseSQLiteTime(updatedAtRaw)
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -66,13 +69,16 @@ func (s *Store) List(ctx context.Context) ([]Profile, error) {
 func (s *Store) Get(ctx context.Context, id int64) (Profile, error) {
 	var p Profile
 	var enabled, apply int
+	var createdAtRaw, updatedAtRaw string
 	err := s.db.QueryRowContext(ctx, `SELECT id,name,enabled,stash_index,max_time_delta,max_distance,apply_actions,created_at,updated_at FROM hash_service_profiles WHERE id=?`, id).
-		Scan(&p.ID, &p.Name, &enabled, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &apply, &p.CreatedAt, &p.UpdatedAt)
+		Scan(&p.ID, &p.Name, &enabled, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &apply, &createdAtRaw, &updatedAtRaw)
 	if err != nil {
 		return Profile{}, err
 	}
 	p.Enabled = enabled != 0
 	p.ApplyActions = apply != 0
+	p.CreatedAt = parseSQLiteTime(createdAtRaw)
+	p.UpdatedAt = parseSQLiteTime(updatedAtRaw)
 	return p, nil
 }
 
@@ -159,4 +165,26 @@ func boolInt(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+func parseSQLiteTime(raw string) time.Time {
+	s := raw
+	if s == "" {
+		return time.Time{}
+	}
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05",
+	}
+	for _, layout := range layouts {
+		t, err := time.Parse(layout, s)
+		if err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
