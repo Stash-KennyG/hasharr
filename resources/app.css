@@ -39,6 +39,8 @@
     button.primary { background:var(--accent); color:#fff; border:0; font-weight:700; }
     button.primary:hover { background:var(--accent-hover); }
     button.primary:active { background:var(--accent-active); }
+    button.danger { background:rgb(219, 55, 55); color:#fff; border:0; font-weight:700; }
+    button.danger:hover { background:rgb(229, 70, 70); }
     .status { min-height:20px; margin-top:8px; font-size:13px; }
     .ok { color:var(--ok); } .err { color:var(--err); }
     .usage { margin-top:10px; padding-top:8px; border-top:1px dashed var(--border); color:var(--muted); font-size:12px; }
@@ -119,5 +121,19 @@
     .scene-file > summary { padding:8px 10px; color:#edf3fa; font-weight:500; background:#273645; }
     .scene-file-body { padding:8px 10px; display:grid; gap:6px; background:#2f3e4d; }
     .footer-version { margin-top:10px; text-align:center; margin-bottom:0; text-transform:none; }
+    .logs-page { max-width:1200px; }
+    .logs-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
+    .logs-toolbar-actions { display:flex; gap:8px; align-items:center; }
+    .logs-toolbar-actions button { margin-top:0; }
+    .logs-meta { display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted); margin-bottom:8px; }
+    .logs-list { display:grid; gap:8px; }
+    .log-item { border:1px solid var(--border); border-radius:8px; background:var(--panel2); overflow:hidden; }
+    .log-item > summary { list-style:none; cursor:pointer; padding:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .log-item > summary::-webkit-details-marker { display:none; }
+    .log-main { font-weight:700; color:#f1f5fb; word-break:break-word; }
+    .log-sub { font-size:12px; color:var(--muted); text-align:right; white-space:nowrap; }
+    .log-item-body { border-top:1px solid var(--border); padding:10px; display:grid; gap:6px; }
+    .logs-pagination { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+    .logs-pagination button { margin-top:0; }
     pre { margin:10px 0 0; white-space:pre-wrap; color:#c9d0dd; }
     @media (max-width: 1000px) { .drawer-body, .browser-results { grid-template-columns:1fr; } .brand h1 { font-size:40px; } }

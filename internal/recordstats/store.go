@@ -35,6 +35,24 @@ type Summary struct {
 	Since               string  `json:"since"`
 }
 
+type LogRow struct {
+	ID                  int64   `json:"id"`
+	SABNzoID            string  `json:"sabNzoID"`
+	FileName            string  `json:"fileName"`
+	FileSizeBytes       int64   `json:"fileSizeBytes"`
+	FileDurationSeconds float64 `json:"fileDurationSeconds"`
+	HashDurationSeconds float64 `json:"hashDurationSeconds"`
+	Outcome             int     `json:"outcome"`
+	CreatedAt           string  `json:"createdAt"`
+}
+
+type LogPage struct {
+	Page     int      `json:"page"`
+	PageSize int      `json:"pageSize"`
+	Total    int64    `json:"total"`
+	Rows     []LogRow `json:"rows"`
+}
+
 func New(path string) (*Store, error) {
 	if path == "" {
 		return nil, fmt.Errorf("stats db path is required")
@@ -118,6 +136,82 @@ func (s *Store) Summary(ctx context.Context) (Summary, error) {
 		return Summary{}, err
 	}
 	return out, nil
+}
+
+func (s *Store) Logs(ctx context.Context, page, pageSize int) (LogPage, error) {
+	if s == nil || s.db == nil {
+		return LogPage{}, fmt.Errorf("stats store is not initialized")
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 100
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	var out LogPage
+	out.Page = page
+	out.PageSize = pageSize
+
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM record_stats`).Scan(&out.Total); err != nil {
+		return LogPage{}, err
+	}
+
+	offset := (page - 1) * pageSize
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT
+			id,
+			sab_nzo_id,
+			file_name,
+			file_size_bytes,
+			file_duration_seconds,
+			hash_duration_seconds,
+			outcome,
+			created_at
+		FROM record_stats
+		ORDER BY id DESC
+		LIMIT ? OFFSET ?`,
+		pageSize,
+		offset,
+	)
+	if err != nil {
+		return LogPage{}, err
+	}
+	defer rows.Close()
+
+	out.Rows = make([]LogRow, 0, pageSize)
+	for rows.Next() {
+		var r LogRow
+		if err := rows.Scan(
+			&r.ID,
+			&r.SABNzoID,
+			&r.FileName,
+			&r.FileSizeBytes,
+			&r.FileDurationSeconds,
+			&r.HashDurationSeconds,
+			&r.Outcome,
+			&r.CreatedAt,
+		); err != nil {
+			return LogPage{}, err
+		}
+		out.Rows = append(out.Rows, r)
+	}
+	if err := rows.Err(); err != nil {
+		return LogPage{}, err
+	}
+	return out, nil
+}
+
+func (s *Store) Clear(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("stats store is not initialized")
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM record_stats`)
+	return err
 }
 
 func ensureSchema(db *sql.DB) error {
