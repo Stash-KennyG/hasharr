@@ -17,13 +17,13 @@
         <div id="menuPanel" style="display:none; position:absolute; right:0; top:46px; min-width:220px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; overflow:hidden; z-index:999;">
           <a href="/" class="menu-link">Dashboard</a>
           <a href="/settings/stash" class="menu-link">Stash Settings</a>
-          <a href="/settings/integrations" class="menu-link">Integrations</a>
+          <a href="/settings/integrations" class="menu-link">Hash Service Profiles</a>
           <a href="/logs" class="menu-link">Logs</a>
         </div>
       </div>
     </div>
 
-    <section class="stats-ribbon">
+    <section class="stats-ribbon" id="statsSection">
       <table class="stats-table">
         <tr>
           <td title="Total number of per-file hash stats records."><div class="sub">Hashes</div><h2 id="statHashCount">0</h2></td>
@@ -50,7 +50,7 @@
         <div style="margin-top:8px;"><strong>Quick start</strong></div>
         <div>1) Open <strong>Stash Settings</strong> and add one or more Stash GraphQL endpoints.</div>
         <div>2) On the <strong>Dashboard Playground</strong>, tune matching behavior ("Stash Endpoints", "maxTimeDelta", "maxDistance") and test files.</div>
-        <div>3) Open <strong>Integrations</strong> to configure Python script download and MeTube/hash-service profiles.</div>
+        <div>3) Open <strong>Hash Service Profiles</strong> to configure Python script download and MeTube/hash-service profiles.</div>
         <div>4) In SABnzbd, use the downloaded sab_postProcess.py as a post-process script for your target jobs/categories.</div>
         <div>5) Validate outcomes via the Dashboard stats ribbon and the Logs page before relying on full automation.</div>
         <div style="margin-top:8px;">See the repository README for full Docker examples, API details, and SAB integration notes.</div>
@@ -98,7 +98,7 @@
       </div>
     </section>
 
-    <section class="workflow">
+    <section class="workflow" id="workflowSection">
       <div class="panel" id="configDrawer">
         <div class="drawer-head" id="configDrawerToggle">
           <div class="drawer-title">🐍 Configurator</div>
@@ -175,7 +175,7 @@
       </div>
       <div class="panel collapsed" id="metubeSettingsPanel">
         <div class="drawer-head" id="metubeSettingsToggle">
-          <div class="drawer-title">🔌 MeTube + Hash Service Profiles</div>
+          <div class="drawer-title">🔌 Hash Service Profiles</div>
           <div class="carrot">▾</div>
         </div>
         <div class="drawer-body">
@@ -1038,16 +1038,28 @@
     });
 
     if (pageBootstrap === 'dashboard') {
+      el('statsSection').style.display = '';
+      el('aboutDrawer').style.display = '';
+      el('workflowSection').style.display = '';
+      el('settingsDrawer').style.display = 'none';
       el('settingsDrawer').classList.add('collapsed');
       el('configDrawer').classList.add('collapsed');
       el('metubeSettingsPanel').classList.add('collapsed');
       el('playgroundDrawer').classList.remove('collapsed');
     } else if (pageBootstrap === 'stash') {
+      el('statsSection').style.display = 'none';
+      el('aboutDrawer').style.display = 'none';
+      el('workflowSection').style.display = 'none';
+      el('settingsDrawer').style.display = '';
       el('settingsDrawer').classList.remove('collapsed');
       el('configDrawer').classList.add('collapsed');
       el('metubeSettingsPanel').classList.add('collapsed');
       el('playgroundDrawer').classList.add('collapsed');
     } else if (pageBootstrap === 'integrations') {
+      el('statsSection').style.display = 'none';
+      el('aboutDrawer').style.display = 'none';
+      el('workflowSection').style.display = '';
+      el('settingsDrawer').style.display = 'none';
       el('settingsDrawer').classList.add('collapsed');
       el('configDrawer').classList.remove('collapsed');
       el('metubeSettingsPanel').classList.remove('collapsed');

@@ -12,12 +12,20 @@
     <div class="brand">
       <img src="/logo.png" alt="hasharr logo" />
       <h1>hasharr logs</h1>
+      <div class="menu-wrap" style="margin-left:auto; position:relative;">
+        <button type="button" id="menuBtn" style="margin-top:0; width:42px; height:42px; padding:0;">☰</button>
+        <div id="menuPanel" style="display:none; position:absolute; right:0; top:46px; min-width:220px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; overflow:hidden; z-index:999;">
+          <a href="/" class="menu-link">Dashboard</a>
+          <a href="/settings/stash" class="menu-link">Stash Settings</a>
+          <a href="/settings/integrations" class="menu-link">Hash Service Profiles</a>
+          <a href="/logs" class="menu-link">Logs</a>
+        </div>
+      </div>
     </div>
     <section class="panel">
       <div class="logs-toolbar">
         <div class="sub">reverse chronological records from record_stats</div>
         <div class="logs-toolbar-actions">
-          <button id="homeBtn">Back</button>
           <button id="refreshBtn">Refresh</button>
           <button id="clearBtn" class="danger">Clear</button>
         </div>
@@ -137,7 +145,15 @@
       await loadLogs(true);
     }
 
-    el('homeBtn').onclick = () => { window.location.href = '/'; };
+    el('menuBtn').onclick = () => {
+      const p = el('menuPanel');
+      p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+    };
+    document.addEventListener('click', (e) => {
+      const wrap = document.querySelector('.menu-wrap');
+      if (!wrap) return;
+      if (!wrap.contains(e.target)) el('menuPanel').style.display = 'none';
+    });
     el('refreshBtn').onclick = () => { loadLogs(true).catch(() => {}); };
     el('clearBtn').onclick = () => { clearLogs().catch(() => {}); };
     el('prevBtn').onclick = () => { if (currentPage > 1) { currentPage--; loadLogs(true).catch(() => {}); } };
