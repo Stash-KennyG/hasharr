@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"hasharr/internal/phash"
+	"hasharr/internal/recordstats"
 	"hasharr/internal/stashconfig"
 )
 
@@ -52,8 +53,18 @@ type sceneCardRequest struct {
 	SceneID     string `json:"sceneId"`
 }
 
+type recordStatsRequest struct {
+	SABNzoID            string  `json:"sabNzoID"`
+	FileName            string  `json:"fileName"`
+	FileSizeBytes       int64   `json:"fileSizeBytes"`
+	FileDurationSeconds float64 `json:"fileDurationSeconds"`
+	HashDurationSeconds float64 `json:"hashDurationSeconds"`
+	Outcome             int     `json:"outcome"`
+}
+
 var computePHash = phash.Compute
 var configStore *stashconfig.Store
+var statsStore *recordstats.Store
 var resourcesDir string
 var lookupMatches = stashconfig.LookupSceneMatchesWithOptions
 
@@ -66,6 +77,12 @@ func main() {
 		log.Fatal(err)
 	}
 	configStore = store
+	statsPath := filepath.Join(filepath.Dir(configPath), "hasharr-stats.db")
+	sStore, err := recordstats.New(statsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	statsStore = sStore
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
@@ -82,6 +99,7 @@ func main() {
 	mux.HandleFunc("/v1/stash-endpoints", handleStashEndpoints)
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
 	mux.HandleFunc("/v1/stash-endpoints-test", handleStashEndpointTest)
+	mux.HandleFunc("/v1/record-stats", handleRecordStats)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -209,6 +227,52 @@ func clampFloatQuery(raw string, fallback, min, max float64) float64 {
 		return max
 	}
 	return f
+}
+
+func handleRecordStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req recordStatsRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	req.SABNzoID = strings.TrimSpace(req.SABNzoID)
+	req.FileName = strings.TrimSpace(req.FileName)
+	if req.FileName == "" {
+		writeErr(w, http.StatusBadRequest, "fileName is required")
+		return
+	}
+	if req.FileSizeBytes < 0 {
+		writeErr(w, http.StatusBadRequest, "fileSizeBytes must be >= 0")
+		return
+	}
+	if req.FileDurationSeconds < 0 {
+		writeErr(w, http.StatusBadRequest, "fileDurationSeconds must be >= 0")
+		return
+	}
+	if req.HashDurationSeconds < 0 {
+		writeErr(w, http.StatusBadRequest, "hashDurationSeconds must be >= 0")
+		return
+	}
+	if req.Outcome < 0 || req.Outcome > 15 {
+		writeErr(w, http.StatusBadRequest, "outcome must be between 0 and 15")
+		return
+	}
+	if err := statsStore.Insert(r.Context(), recordstats.Record{
+		SABNzoID:            req.SABNzoID,
+		FileName:            req.FileName,
+		FileSizeBytes:       req.FileSizeBytes,
+		FileDurationSeconds: req.FileDurationSeconds,
+		HashDurationSeconds: req.HashDurationSeconds,
+		Outcome:             req.Outcome,
+	}); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
