@@ -100,7 +100,7 @@ func main() {
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
 	mux.HandleFunc("/v1/stash-endpoints-test", handleStashEndpointTest)
 	mux.HandleFunc("/v1/record-stats", handleRecordStats)
-	mux.HandleFunc("/v1/record-stats-summary", handleRecordStatsSummary)
+	mux.HandleFunc("/v1/stats-summary", handleRecordStatsSummary)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -1076,7 +1076,7 @@ var configPageHTML = `<!doctype html>
 
     async function loadStatsSummary(){
       try {
-        const res = await fetch('/v1/record-stats-summary');
+        const res = await fetch('/v1/stats-summary');
         const out = await res.json().catch(() => ({}));
         if (!res.ok) return;
         el('statHashCount').textContent = fmtCount(out.hashCount || 0);
