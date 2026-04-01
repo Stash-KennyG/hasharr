@@ -50,7 +50,7 @@
         <div style="margin-top:8px;"><strong>Quick start</strong></div>
         <div>1) Open <strong>Stash Settings</strong> and add one or more Stash GraphQL endpoints.</div>
         <div>2) On the <strong>Dashboard Playground</strong>, tune matching behavior ("Stash Endpoints", "maxTimeDelta", "maxDistance") and test files.</div>
-        <div>3) Open <strong>Hash Service Profiles</strong> to configure Python script download and MeTube/hash-service profiles.</div>
+        <div>3) Open <strong>Hash Service Profiles</strong> to configure reusable service profiles and Python script download behavior.</div>
         <div>4) In SABnzbd, use the downloaded sab_postProcess.py as a post-process script for your target jobs/categories.</div>
         <div>5) Validate outcomes via the Dashboard stats ribbon and the Logs page before relying on full automation.</div>
         <div style="margin-top:8px;">See the repository README for full Docker examples, API details, and SAB integration notes.</div>
@@ -178,66 +178,99 @@
           <div class="drawer-title">🔌 Hash Service Profiles</div>
           <div class="carrot">▾</div>
         </div>
-        <div class="drawer-body">
+        <div class="drawer-body" style="grid-template-columns:280px 1fr;">
           <div class="card">
-            <h3>Python Configurator</h3>
-            <div class="sub">sab script download configuration</div>
-            <div class="pathrow">
-              <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
-              <select id="intStashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
-                <option value="-1">All</option>
-              </select>
-              <label style="margin:0;min-width:95px;">maxTimeDelta</label>
-              <input id="intMaxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
-              <label style="margin:0;min-width:88px;">maxDistance</label>
-              <input id="intMaxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
-              <span id="intMaxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
-              <button class="primary" id="intDownloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>MeTube Pairing</h3>
-            <div class="sub">use these values in MeTube</div>
-            <label>HASHARR_URL</label>
-            <input id="metubeHasharrURL" value="http://hasharr:9995" />
-            <label>HASHARR_SERVICE_ID</label>
-            <input id="metubeServiceID" type="number" min="1" value="1" />
-            <div class="usage">
-              <div>- In MeTube set <strong>HASHARR_ENABLED=true</strong>.</div>
-              <div>- Set <strong>HASHARR_URL</strong> and <strong>HASHARR_SERVICE_ID</strong> to a profile below.</div>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Hash Service Profiles</h3>
-            <div class="sub">ui CRUD for /api/hash-service/{id}</div>
-            <label>Existing Profiles</label>
+            <h3>Existing Profiles</h3>
+            <div class="sub">select to update, or create new</div>
             <ul id="profileList"></ul>
-            <label>Name</label>
-            <input id="profileName" placeholder="metube-default" />
-            <div class="row">
-              <div class="grow">
-                <label>Enabled</label>
-                <input id="profileEnabled" type="checkbox" style="width:auto;" checked />
-              </div>
-              <div class="grow">
-                <label>Apply Actions</label>
-                <input id="profileApplyActions" type="checkbox" style="width:auto;" checked />
+          </div>
+          <div style="display:grid; gap:10px;">
+            <div class="panel">
+              <div class="drawer-head"><div class="drawer-title">Update Service Profile</div></div>
+              <div class="drawer-body single">
+                <label>Hasharr Service ID</label>
+                <input id="profileIDDisplay" type="text" value="(new)" readonly />
+                <div class="row">
+                  <div class="grow">
+                    <label>Name</label>
+                    <input id="profileName" placeholder="general-default" />
+                  </div>
+                  <div class="grow">
+                    <label>Stash Endpoint</label>
+                    <select id="profileStashIndex" style="width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+                      <option value="-1">All</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="grow">
+                    <label>Max Time Delta (0-15)</label>
+                    <input id="profileMaxTimeDelta" type="number" min="0" max="15" step="1" value="1" />
+                  </div>
+                  <div class="grow">
+                    <label>Max Distance (0-8)</label>
+                    <input id="profileMaxDistance" type="number" min="0" max="8" step="1" value="0" />
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="grow">
+                    <label>Enabled</label>
+                    <input id="profileEnabled" type="checkbox" style="width:auto;" checked />
+                  </div>
+                  <div class="grow">
+                    <label title="When checked, hasharr is the actor and all service behavior is delegated to hasharr. When disabled, scripts and other consumers must handle behavior client-side.">Apply Actions ⓘ</label>
+                    <input id="profileApplyActions" type="checkbox" style="width:auto;" checked />
+                  </div>
+                </div>
+                <div class="row">
+                  <button class="grow" id="profileNewBtn">New</button>
+                  <button class="primary grow" id="profileSaveBtn">Save</button>
+                  <button class="grow" id="profileDeleteBtn">Delete</button>
+                </div>
+                <div class="status" id="profileStatus"></div>
               </div>
             </div>
-            <label>Stash Endpoint</label>
-            <select id="profileStashIndex" style="width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
-              <option value="-1">All</option>
-            </select>
-            <label>Max Time Delta (0-15)</label>
-            <input id="profileMaxTimeDelta" type="number" min="0" max="15" step="1" value="1" />
-            <label>Max Distance (0-8)</label>
-            <input id="profileMaxDistance" type="number" min="0" max="8" step="1" value="0" />
-            <div class="row">
-              <button class="grow" id="profileNewBtn">New</button>
-              <button class="primary grow" id="profileSaveBtn">Save</button>
-              <button class="grow" id="profileDeleteBtn">Delete</button>
+            <div class="panel collapsed" id="profilesAboutDrawer">
+              <div class="drawer-head" id="profilesAboutToggle">
+                <div class="drawer-title">About</div><div class="carrot">▾</div>
+              </div>
+              <div class="drawer-body single">
+                <div class="sub">context help</div>
+                <div>Profiles are intentionally generic. Any client that can send HTTP POST can target <span class="mono">/api/hash-service/{id}</span>.</div>
+                <div>Pick a profile by ID on the consumer side, and keep matching policy centralized in hasharr.</div>
+              </div>
             </div>
-            <div class="status" id="profileStatus"></div>
+            <div class="panel collapsed" id="profilesPythonDrawer">
+              <div class="drawer-head" id="profilesPythonToggle">
+                <div class="drawer-title">Python Configurator</div><div class="carrot">▾</div>
+              </div>
+              <div class="drawer-body single">
+                <div class="sub">script download configuration</div>
+                <div class="row">
+                  <div class="grow">
+                    <label>Stash Endpoints</label>
+                    <select id="intStashIndex" style="width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+                      <option value="-1">All</option>
+                    </select>
+                  </div>
+                  <div class="grow">
+                    <label>maxTimeDelta</label>
+                    <input id="intMaxTimeDelta" type="number" min="0" max="15" step="1" value="1" />
+                  </div>
+                  <div class="grow">
+                    <label>maxDistance</label>
+                    <input id="intMaxDistance" type="range" min="0" max="8" step="1" value="0" />
+                    <span id="intMaxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
+                  </div>
+                </div>
+                <label>hasharr URL</label>
+                <input id="metubeHasharrURL" value="http://hasharr:9995" />
+                <div class="row">
+                  <button id="intDetectBtn" class="grow">Detect</button>
+                  <button class="primary grow" id="intDownloadSabBtn">Download</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -455,6 +488,7 @@
 
     function clearProfileForm(){
       selectedProfileId = 0;
+      el('profileIDDisplay').value = '(new)';
       el('profileName').value = '';
       el('profileEnabled').checked = true;
       el('profileApplyActions').checked = true;
@@ -466,6 +500,7 @@
 
     function fillProfileForm(p){
       selectedProfileId = Number(p.id || 0);
+      el('profileIDDisplay').value = String(selectedProfileId || '(new)');
       el('profileName').value = String(p.name || '');
       el('profileEnabled').checked = !!p.enabled;
       el('profileApplyActions').checked = !!p.applyActions;
@@ -473,7 +508,6 @@
       el('profileMaxTimeDelta').value = String(clampInt(p.maxTimeDelta, 1, 0, 15));
       el('profileMaxDistance').value = String(clampInt(p.maxDistance, 0, 0, 8));
       renderProfiles();
-      el('metubeServiceID').value = String(selectedProfileId || 1);
     }
 
     async function loadProfiles(){
@@ -540,6 +574,14 @@
       q.set('maxDistance', String(cfg.maxDistance));
       if (hasharrUrl) q.set('hasharrUrl', hasharrUrl);
       return '/v1/sab-postprocess.py?' + q.toString();
+    }
+
+    function hashServiceClientScriptURL(endpointURL){
+      const hasharrUrl = String(endpointURL || '').trim();
+      const q = new URLSearchParams();
+      q.set('serviceID', String(Number(selectedProfileId || 1)));
+      if (hasharrUrl) q.set('hasharrUrl', hasharrUrl);
+      return '/v1/hash-service-client.py?' + q.toString();
     }
 
     function openSABModal(){
@@ -1024,6 +1066,8 @@
     el('configDrawerToggle').onclick = () => el('configDrawer').classList.toggle('collapsed');
     el('playgroundDrawerToggle').onclick = () => el('playgroundDrawer').classList.toggle('collapsed');
     el('metubeSettingsToggle').onclick = () => el('metubeSettingsPanel').classList.toggle('collapsed');
+    el('profilesAboutToggle').onclick = () => el('profilesAboutDrawer').classList.toggle('collapsed');
+    el('profilesPythonToggle').onclick = () => el('profilesPythonDrawer').classList.toggle('collapsed');
     el('saveBtn').onclick = saveEndpoint;
     el('testBtn').onclick = testEndpoint;
     el('newBtn').onclick = () => { clearForm(); status(''); };
@@ -1043,8 +1087,16 @@
     el('intStashIndex').onchange = updateCurl;
     el('intMaxTimeDelta').onchange = () => { el('intMaxTimeDelta').value = String(clampInt(el('intMaxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('intMaxDistance').oninput = () => { el('intMaxDistanceLabel').textContent = el('intMaxDistance').value; updateCurl(); };
+    el('intDetectBtn').onclick = () => { el('metubeHasharrURL').value = window.location.origin || 'http://hasharr:9995'; };
     el('downloadSabBtn').onclick = openSABModal;
-    el('intDownloadSabBtn').onclick = openSABModal;
+    el('intDownloadSabBtn').onclick = () => {
+      const endpointURL = String(el('metubeHasharrURL').value || '').trim();
+      if (el('profileApplyActions').checked) {
+        window.location.href = hashServiceClientScriptURL(endpointURL);
+      } else {
+        window.location.href = sabScriptURL(endpointURL);
+      }
+    };
     el('profileNewBtn').onclick = () => { clearProfileForm(); profileStatus(''); };
     el('profileSaveBtn').onclick = saveProfile;
     el('profileDeleteBtn').onclick = deleteProfile;

@@ -123,6 +123,7 @@ func main() {
 	mux.HandleFunc("/logo.png", handleLogo)
 	mux.HandleFunc("/app.css", handleAppCSS)
 	mux.HandleFunc("/v1/sab-postprocess.py", handleSABPostProcessScript)
+	mux.HandleFunc("/v1/hash-service-client.py", handleHashServiceClientScript)
 	mux.HandleFunc("/healthz", healthz)
 	mux.HandleFunc("/v1/phash", handlePHash)
 	mux.HandleFunc("/v1/phash-match", handlePHashMatch)
@@ -296,6 +297,81 @@ func handleSABPostProcessScript(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/x-python; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="sab_postProcess.py"`)
 	_, _ = io.WriteString(w, out)
+}
+
+func handleHashServiceClientScript(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	serviceID := clampIntQuery(r.URL.Query().Get("serviceID"), 1, 1, 1000000)
+	hasharrURL := strings.TrimSpace(r.URL.Query().Get("hasharrUrl"))
+	if hasharrURL == "" {
+		hasharrURL = strings.TrimSpace(r.Header.Get("Origin"))
+	}
+	if hasharrURL == "" {
+		hasharrURL = "http://hasharr:9995"
+	}
+	script := "#!/usr/bin/env python3\n" +
+		"\"\"\"hasharr hash-service client script.\n\n" +
+		"Calls hasharr POST /api/hash-service/{id} for files found in SAB complete dir.\n" +
+		"\"\"\"\n" +
+		"from __future__ import annotations\n\n" +
+		"import json\n" +
+		"import os\n" +
+		"import pathlib\n" +
+		"import urllib.request\n" +
+		"from typing import Iterable\n\n" +
+		"DEFAULT_HASHARR_URL = " + strconv.Quote(hasharrURL) + "\n" +
+		"DEFAULT_SERVICE_ID = " + strconv.Itoa(serviceID) + "\n\n" +
+		"VIDEO_EXTS = {'.mp4','.mkv','.avi','.wmv','.mov','.webm','.m4v','.ts','.m2ts','.flv'}\n\n" +
+		"def iter_video_files(root: pathlib.Path) -> Iterable[pathlib.Path]:\n" +
+		"    for p in root.rglob('*'):\n" +
+		"        if not p.is_file():\n" +
+		"            continue\n" +
+		"        if p.suffix.lower() in VIDEO_EXTS:\n" +
+		"            yield p\n\n" +
+		"def call_hasharr(file_path: pathlib.Path) -> int:\n" +
+		"    payload = {\n" +
+		"        'filePath': str(file_path),\n" +
+		"        'source': 'python-client',\n" +
+		"        'jobId': os.environ.get('SAB_NZO_ID',''),\n" +
+		"    }\n" +
+		"    data = json.dumps(payload).encode('utf-8')\n" +
+		"    req = urllib.request.Request(\n" +
+		"        f\"{DEFAULT_HASHARR_URL.rstrip('/')}/api/hash-service/{DEFAULT_SERVICE_ID}\",\n" +
+		"        data=data,\n" +
+		"        headers={'Content-Type':'application/json'},\n" +
+		"        method='POST',\n" +
+		"    )\n" +
+		"    with urllib.request.urlopen(req, timeout=30) as resp:\n" +
+		"        return int(resp.status)\n\n" +
+		"def main() -> int:\n" +
+		"    complete_dir = os.environ.get('SAB_COMPLETE_DIR','').strip()\n" +
+		"    if not complete_dir:\n" +
+		"        print('[hasharr-client] SAB_COMPLETE_DIR missing')\n" +
+		"        return 0\n" +
+		"    root = pathlib.Path(complete_dir)\n" +
+		"    if not root.exists():\n" +
+		"        print(f'[hasharr-client] directory missing: {root}')\n" +
+		"        return 0\n" +
+		"    files = list(iter_video_files(root))\n" +
+		"    if not files:\n" +
+		"        print('[hasharr-client] no video files found')\n" +
+		"        return 0\n" +
+		"    for f in files:\n" +
+		"        try:\n" +
+		"            code = call_hasharr(f)\n" +
+		"            print(f'[hasharr-client] {f.name}: status={code}')\n" +
+		"        except Exception as exc:\n" +
+		"            print(f'[hasharr-client] error for {f}: {exc}')\n" +
+		"    return 0\n\n" +
+		"if __name__ == '__main__':\n" +
+		"    raise SystemExit(main())\n"
+
+	w.Header().Set("Content-Type", "text/x-python; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="hash_service_client.py"`)
+	_, _ = io.WriteString(w, script)
 }
 
 func injectPythonDefaults(src, cfg string) string {
