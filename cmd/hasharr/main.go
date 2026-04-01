@@ -966,7 +966,7 @@ var configPageHTML = `<!doctype html>
 
       const sourceDur = Number(sourceHash.duration || 0);
       const stashDur = Number(card.duration || 0);
-      if (sourceDur > 0 && stashDur > 0 && sourceDur > stashDur) out.push('Longer');
+      if (sourceDur > 0 && stashDur > 0 && (sourceDur - stashDur) > 1) out.push('Longer');
 
       const sourceFPS = normalizedFPS(sourceHash.frame_rate);
       const stashFPS = normalizedFPS(card.frameRate);
