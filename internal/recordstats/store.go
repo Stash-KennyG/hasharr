@@ -23,6 +23,17 @@ type Store struct {
 	db *sql.DB
 }
 
+type Summary struct {
+	HashCount           int64   `json:"hashCount"`
+	DataBytesSum        int64   `json:"dataBytesSum"`
+	DeleteCount         int64   `json:"deleteCount"`
+	LCount              int64   `json:"lCount"`
+	FCount              int64   `json:"fCount"`
+	DCount              int64   `json:"dCount"`
+	VideoDurationSumSec float64 `json:"videoDurationSumSec"`
+	HashDurationSumSec  float64 `json:"hashDurationSumSec"`
+}
+
 func New(path string) (*Store, error) {
 	if path == "" {
 		return nil, fmt.Errorf("stats db path is required")
@@ -71,6 +82,39 @@ func (s *Store) Insert(ctx context.Context, r Record) error {
 		now,
 	)
 	return err
+}
+
+func (s *Store) Summary(ctx context.Context) (Summary, error) {
+	if s == nil || s.db == nil {
+		return Summary{}, fmt.Errorf("stats store is not initialized")
+	}
+	var out Summary
+	row := s.db.QueryRowContext(
+		ctx,
+		`SELECT
+			COALESCE(COUNT(*), 0) AS hash_count,
+			COALESCE(SUM(file_size_bytes), 0) AS data_bytes_sum,
+			COALESCE(SUM(CASE WHEN (outcome & 8) != 0 THEN 1 ELSE 0 END), 0) AS delete_count,
+			COALESCE(SUM(CASE WHEN (outcome & 4) != 0 THEN 1 ELSE 0 END), 0) AS l_count,
+			COALESCE(SUM(CASE WHEN (outcome & 1) != 0 THEN 1 ELSE 0 END), 0) AS f_count,
+			COALESCE(SUM(CASE WHEN (outcome & 2) != 0 THEN 1 ELSE 0 END), 0) AS d_count,
+			COALESCE(SUM(file_duration_seconds), 0) AS video_duration_sum_sec,
+			COALESCE(SUM(hash_duration_seconds), 0) AS hash_duration_sum_sec
+		FROM record_stats`,
+	)
+	if err := row.Scan(
+		&out.HashCount,
+		&out.DataBytesSum,
+		&out.DeleteCount,
+		&out.LCount,
+		&out.FCount,
+		&out.DCount,
+		&out.VideoDurationSumSec,
+		&out.HashDurationSumSec,
+	); err != nil {
+		return Summary{}, err
+	}
+	return out, nil
 }
 
 func ensureSchema(db *sql.DB) error {

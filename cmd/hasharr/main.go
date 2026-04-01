@@ -100,6 +100,7 @@ func main() {
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
 	mux.HandleFunc("/v1/stash-endpoints-test", handleStashEndpointTest)
 	mux.HandleFunc("/v1/record-stats", handleRecordStats)
+	mux.HandleFunc("/v1/record-stats-summary", handleRecordStatsSummary)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -273,6 +274,19 @@ func handleRecordStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func handleRecordStatsSummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	s, err := statsStore.Summary(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, s)
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -712,6 +726,17 @@ var configPageHTML = `<!doctype html>
       <h1>hasharr</h1>
     </div>
 
+    <section class="stats-ribbon">
+      <div class="stats-item" title="Total number of per-file hash stats records."><div class="sub">Count of Hashes</div><h2 id="statHashCount">0</h2></div>
+      <div class="stats-item" title="Sum of processed source file sizes in record-stats."><div class="sub">Sum of Data</div><h2 id="statDataSum">0 B</h2></div>
+      <div class="stats-item" title="Count of files deleted by exact-match quality logic."><div class="sub">Deletes</div><h2 id="statDeleteCount">0</h2></div>
+      <div class="stats-item" title="Count of files tagged with L (larger resolution)."><div class="sub">L Tags</div><h2 id="statLCount">0</h2></div>
+      <div class="stats-item" title="Count of files tagged with F (higher fps)."><div class="sub">F Tags</div><h2 id="statFCount">0</h2></div>
+      <div class="stats-item" title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></div>
+      <div class="stats-item" title="Sum of source video durations from record-stats."><div class="sub">Sum of Video</div><h2 id="statVideoSum">0s</h2></div>
+      <div class="stats-item" title="Sum of hash processing elapsed time from record-stats."><div class="sub">Sum of Hash Time</div><h2 id="statHashTimeSum">0s</h2></div>
+    </section>
+
     <section class="panel" id="settingsDrawer">
       <div class="drawer-head" id="drawerToggle">
         <div>
@@ -1005,6 +1030,15 @@ var configPageHTML = `<!doctype html>
       return (i === 0 ? String(Math.round(v)) : v.toFixed(2).replace(/\.00$/, '')) + ' ' + units[i];
     }
 
+    function fmtBytesSI1(n){
+      const b = Number(n || 0);
+      if (!Number.isFinite(b) || b <= 0) return '0 B';
+      const units = ['B','KB','MB','GB','TB','PB'];
+      let v = b, i = 0;
+      while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
+      return (i === 0 ? String(Math.round(v)) : v.toFixed(1)) + units[i];
+    }
+
     function fmtDate(s){
       const v = String(s || '').trim();
       if (!v) return '';
@@ -1027,6 +1061,33 @@ var configPageHTML = `<!doctype html>
       const d = new Date(v);
       if (Number.isNaN(d.getTime())) return v;
       return d.toLocaleDateString();
+    }
+
+    function fmtDurationLong(sec){
+      const s = Math.max(0, Number(sec || 0));
+      if (!Number.isFinite(s) || s <= 0) return '0s';
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = Math.floor(s % 60);
+      if (h > 0) return String(h) + 'h ' + String(m) + 'm ' + String(r) + 's';
+      if (m > 0) return String(m) + 'm ' + String(r) + 's';
+      return r.toFixed(1).replace(/\.0$/, '') + 's';
+    }
+
+    async function loadStatsSummary(){
+      try {
+        const res = await fetch('/v1/record-stats-summary');
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+        el('statHashCount').textContent = fmtCount(out.hashCount || 0);
+        el('statDataSum').textContent = fmtBytesSI1(out.dataBytesSum || 0);
+        el('statDeleteCount').textContent = fmtCount(out.deleteCount || 0);
+        el('statLCount').textContent = fmtCount(out.lCount || 0);
+        el('statFCount').textContent = fmtCount(out.fCount || 0);
+        el('statDCount').textContent = fmtCount(out.dCount || 0);
+        el('statVideoSum').textContent = fmtDurationLong(out.videoDurationSumSec || 0);
+        el('statHashTimeSum').textContent = fmtDurationLong(out.hashDurationSumSec || 0);
+      } catch(_) {}
     }
 
     function normalizedFPS(v){
@@ -1281,6 +1342,7 @@ var configPageHTML = `<!doctype html>
       el('resultJson').textContent = JSON.stringify(out, null, 2);
       if (res.ok) {
         await renderMatchCards(out);
+        await loadStatsSummary();
       } else {
         el('cards').innerHTML = '';
       }
@@ -1312,6 +1374,6 @@ var configPageHTML = `<!doctype html>
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
-    Promise.all([loadEndpoints(), loadDir('')]).catch(err => { status(String(err),'err'); });
+    Promise.all([loadEndpoints(), loadDir(''), loadStatsSummary()]).catch(err => { status(String(err),'err'); });
   </script>
 </body></html>`
