@@ -59,6 +59,12 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
   - runs hash on double-click or `Hash` button
   - displays a working spinner and JSON results panel
   - UI areas are split into drawers: `🐍 Configurator` and `🏗 Playground`
+- Includes a dedicated logs page at `/logs`:
+  - reverse chronological records from `record_stats`
+  - paginated 100 rows per page
+  - auto-refresh polling every 2 seconds
+  - expandable per-row details
+  - destructive clear action with warning/confirmation
 - Uses `resources/logo.png` for branding
 - Generates `favicon.ico` from `resources/favicon_source.png` during container build
 
@@ -230,6 +236,47 @@ Returns aggregated stats from the SQLite store, including:
 - `videoDurationSumSec`
 - `hashDurationSumSec`
 - `since` (minimum `created_at` timestamp; UI renders as ISO `YYYY-MM-DD`)
+
+### `GET /v1/stats-logs`
+
+Returns paginated rows from `record_stats` in reverse chronological order.
+
+Query params:
+
+- `page` (default `1`)
+- `pageSize` (default `100`, max `100`)
+
+Response:
+
+```json
+{
+  "page": 1,
+  "pageSize": 100,
+  "total": 3456,
+  "rows": [
+    {
+      "id": 3456,
+      "sabNzoID": "job-123",
+      "fileName": "example.mp4",
+      "fileSizeBytes": 123456789,
+      "fileDurationSeconds": 2089.28,
+      "hashDurationSeconds": 1.22,
+      "outcome": 6,
+      "createdAt": "2026-04-01T12:34:56.123456Z"
+    }
+  ]
+}
+```
+
+### `POST /v1/stats-logs/clear`
+
+Deletes all rows from `record_stats`.
+
+Returns:
+
+```json
+{"status":"ok"}
+```
 
 ## SABnzbd post-process script
 

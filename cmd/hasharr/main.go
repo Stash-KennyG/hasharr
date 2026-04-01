@@ -91,6 +91,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
+	mux.HandleFunc("/logs", handleLogsPage)
 	mux.HandleFunc("/favicon.ico", handleFavicon)
 	mux.HandleFunc("/favicon-source.png", handleFaviconSource)
 	mux.HandleFunc("/logo.png", handleLogo)
@@ -106,6 +107,8 @@ func main() {
 	mux.HandleFunc("/v1/stash-endpoints-test", handleStashEndpointTest)
 	mux.HandleFunc("/v1/record-stats", handleRecordStats)
 	mux.HandleFunc("/v1/stats-summary", handleRecordStatsSummary)
+	mux.HandleFunc("/v1/stats-logs", handleRecordStatsLogs)
+	mux.HandleFunc("/v1/stats-logs/clear", handleRecordStatsLogsClear)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -139,6 +142,30 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		versionTip = "running from local resources, outside standard build methods."
 	}
 	html := strings.ReplaceAll(configPageHTML, "__HASHARR_VERSION__", versionText)
+	html = strings.ReplaceAll(html, "__HASHARR_VERSION_TOOLTIP__", versionTip)
+	_, _ = io.WriteString(w, html)
+}
+
+func handleLogsPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/logs" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	versionSeries := strings.TrimSpace(versionSeriesRaw)
+	if versionSeries == "" {
+		versionSeries = "0.0"
+	}
+	build := strings.TrimSpace(buildID)
+	if build == "" {
+		build = "local"
+	}
+	versionText := "hasharr v." + versionSeries + "." + build
+	versionTip := ""
+	if strings.EqualFold(build, "local") {
+		versionTip = "running from local resources, outside standard build methods."
+	}
+	html := strings.ReplaceAll(logsPageHTML, "__HASHARR_VERSION__", versionText)
 	html = strings.ReplaceAll(html, "__HASHARR_VERSION_TOOLTIP__", versionTip)
 	_, _ = io.WriteString(w, html)
 }
@@ -307,6 +334,33 @@ func handleRecordStatsSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s)
+}
+
+func handleRecordStatsLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	page := clampIntQuery(r.URL.Query().Get("page"), 1, 1, 1000000)
+	pageSize := clampIntQuery(r.URL.Query().Get("pageSize"), 100, 1, 100)
+	out, err := statsStore.Logs(r.Context(), page, pageSize)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func handleRecordStatsLogsClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if err := statsStore.Clear(r.Context()); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -1571,5 +1625,145 @@ var configPageHTML = `<!doctype html>
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
     Promise.all([loadEndpoints(), loadDir(''), loadStatsSummary()]).catch(err => { status(String(err),'err'); });
+  </script>
+</body></html>`
+
+var logsPageHTML = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>hasharr logs</title>
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <div class="container logs-page">
+    <div class="brand">
+      <img src="/logo.png" alt="hasharr logo" />
+      <h1>hasharr logs</h1>
+    </div>
+    <section class="panel">
+      <div class="logs-toolbar">
+        <div class="sub">reverse chronological records from record_stats</div>
+        <div class="logs-toolbar-actions">
+          <button id="homeBtn">Back Home</button>
+          <button id="refreshBtn">Refresh</button>
+          <button id="clearBtn" class="danger">Clear</button>
+        </div>
+      </div>
+      <div class="logs-meta">
+        <span id="logsCount">0 rows</span>
+        <span id="logsPageInfo">Page 1</span>
+      </div>
+      <div id="logsList" class="logs-list"></div>
+      <div class="logs-pagination">
+        <button id="prevBtn">Previous</button>
+        <button id="nextBtn">Next</button>
+      </div>
+    </section>
+    <div class="sub footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
+  </div>
+  <script>
+    const PAGE_SIZE = 100;
+    let currentPage = 1;
+    let totalRows = 0;
+    let lastSig = '';
+    const el = (id) => document.getElementById(id);
+
+    function fmtCount(n){ return Number(n || 0).toLocaleString(); }
+    function fmtBytesSI1(n){
+      const b = Number(n || 0);
+      if (!Number.isFinite(b) || b <= 0) return '0 B';
+      const units = ['B','KB','MB','GB','TB','PB'];
+      let v = b, i = 0;
+      while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
+      return (i === 0 ? String(Math.round(v)) : v.toFixed(1)) + units[i];
+    }
+    function fmtISO(s){
+      const v = String(s || '').trim();
+      if (!v) return '';
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return v;
+      return d.toISOString();
+    }
+    function fmtDurationLong(sec){
+      const s = Math.max(0, Number(sec || 0));
+      if (!Number.isFinite(s) || s <= 0) return '0s';
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const r = Math.floor(s % 60);
+      if (h > 0) return String(h) + 'h ' + String(m) + 'm ' + String(r) + 's';
+      if (m > 0) return String(m) + 'm ' + String(r) + 's';
+      return String(r) + 's';
+    }
+    function outcomeFlags(outcome){
+      const o = Number(outcome || 0);
+      const out = [];
+      if ((o & 4) !== 0) out.push('L');
+      if ((o & 2) !== 0) out.push('D');
+      if ((o & 1) !== 0) out.push('F');
+      if ((o & 8) !== 0) out.push('Deleted');
+      return out.length ? out.join(' | ') : 'None';
+    }
+    function rowSig(rows){
+      return rows.map((r) => [r.id, r.createdAt, r.fileName, r.outcome].join(':')).join('|');
+    }
+    function renderRows(rows){
+      const host = el('logsList');
+      if (!rows.length) {
+        host.innerHTML = '<div class="scene-meta">No log rows found.</div>';
+        return;
+      }
+      host.innerHTML = rows.map((r) =>
+        '<details class="log-item">'
+        + '<summary><span class="log-main">' + (r.fileName || '(unknown)') + '</span><span class="log-sub">' + fmtISO(r.createdAt) + ' · ' + outcomeFlags(r.outcome) + '</span></summary>'
+        + '<div class="log-item-body">'
+        + '<div class="kv"><span class="k">ID:</span><span class="v">' + r.id + '</span></div>'
+        + '<div class="kv"><span class="k">SAB NZO ID:</span><span class="v">' + (r.sabNzoID || '') + '</span></div>'
+        + '<div class="kv"><span class="k">File Name:</span><span class="v">' + (r.fileName || '') + '</span></div>'
+        + '<div class="kv"><span class="k">File Size:</span><span class="v">' + fmtBytesSI1(r.fileSizeBytes || 0) + '</span></div>'
+        + '<div class="kv"><span class="k">Video Duration:</span><span class="v">' + fmtDurationLong(r.fileDurationSeconds || 0) + '</span></div>'
+        + '<div class="kv"><span class="k">Hash Duration:</span><span class="v">' + fmtDurationLong(r.hashDurationSeconds || 0) + '</span></div>'
+        + '<div class="kv"><span class="k">Outcome:</span><span class="v">' + Number(r.outcome || 0) + ' (' + outcomeFlags(r.outcome) + ')</span></div>'
+        + '<div class="kv"><span class="k">Created:</span><span class="v">' + fmtISO(r.createdAt) + '</span></div>'
+        + '</div>'
+        + '</details>'
+      ).join('');
+    }
+    async function loadLogs(force){
+      const res = await fetch('/v1/stats-logs?page=' + encodeURIComponent(String(currentPage)) + '&pageSize=' + PAGE_SIZE);
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      totalRows = Number(out.total || 0);
+      const rows = Array.isArray(out.rows) ? out.rows : [];
+      const sig = rowSig(rows) + '#' + String(totalRows) + '#' + String(currentPage);
+      if (force || sig !== lastSig) {
+        renderRows(rows);
+        lastSig = sig;
+      }
+      const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+      el('logsCount').textContent = fmtCount(totalRows) + ' rows';
+      el('logsPageInfo').textContent = 'Page ' + String(currentPage) + ' of ' + String(totalPages);
+      el('prevBtn').disabled = currentPage <= 1;
+      el('nextBtn').disabled = currentPage >= totalPages;
+    }
+    async function clearLogs(){
+      const ok = window.confirm('This will permanently delete all log rows. Continue?');
+      if (!ok) return;
+      const res = await fetch('/v1/stats-logs/clear', { method:'POST' });
+      if (!res.ok) return;
+      currentPage = 1;
+      await loadLogs(true);
+    }
+
+    el('homeBtn').onclick = () => { window.location.href = '/'; };
+    el('refreshBtn').onclick = () => { loadLogs(true).catch(() => {}); };
+    el('clearBtn').onclick = () => { clearLogs().catch(() => {}); };
+    el('prevBtn').onclick = () => { if (currentPage > 1) { currentPage--; loadLogs(true).catch(() => {}); } };
+    el('nextBtn').onclick = () => { currentPage++; loadLogs(true).catch(() => {}); };
+
+    loadLogs(true).catch(() => {});
+    setInterval(() => { loadLogs(false).catch(() => {}); }, 2000);
   </script>
 </body></html>`
