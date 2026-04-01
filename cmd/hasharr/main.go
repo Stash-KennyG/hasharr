@@ -804,47 +804,63 @@ var configPageHTML = `<!doctype html>
     </section>
 
     <section class="workflow">
-      <div class="pathbar">
-        <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
-        <div class="pathrow">
-          <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
-          <select id="stashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
-            <option value="-1">All</option>
-          </select>
-          <label style="margin:0;min-width:95px;">maxTimeDelta</label>
-          <input id="maxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
-          <label style="margin:0;min-width:88px;">maxDistance</label>
-          <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
-          <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
-          <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
+      <div class="panel" id="configDrawer">
+        <div class="drawer-head" id="configDrawerToggle">
+          <div class="drawer-title">🐍 Configurator</div>
+          <div class="carrot">▾</div>
+        </div>
+        <div class="drawer-body" style="display:block;">
+          <div class="pathbar">
+            <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
+            <div class="pathrow">
+              <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
+              <select id="stashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+                <option value="-1">All</option>
+              </select>
+              <label style="margin:0;min-width:95px;">maxTimeDelta</label>
+              <input id="maxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
+              <label style="margin:0;min-width:88px;">maxDistance</label>
+              <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
+              <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
+              <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="curlbar">
-        <div class="sub">generated curl command</div>
-        <div class="mono" id="curlCmd">Select a file to generate curl command.</div>
-      </div>
-      <div class="pathbar">
-        <div class="sub">path</div>
-        <div class="pathrow">
-          <button id="upBtn">Up</button>
-          <input id="pathInput" />
-          <button class="primary" id="hashBtn">Hash</button>
+      <div class="panel" id="playgroundDrawer">
+        <div class="drawer-head" id="playgroundDrawerToggle">
+          <div class="drawer-title">🏗 Playground</div>
+          <div class="carrot">▾</div>
         </div>
-      </div>
-      <div class="browser-results">
-        <div class="card">
-          <table>
-            <thead><tr><th id="nameSortHead" title="Sort by name">Name</th><th id="sizeSortHead" title="Sort by size">Size</th><th id="modifiedSortHead" title="Sort by modified date">Date Modified</th></tr></thead>
-            <tbody id="fileRows"></tbody>
-          </table>
-        </div>
-        <div class="results">
-          <div class="sub">results</div>
-          <div class="spinner" id="spinner"></div>
-          <div id="cards" class="cards"></div>
-          <div id="rawDrawer" class="collapsed">
-            <div class="raw-drawer-head" id="rawToggle"><span>Raw JSON</span><span class="raw-caret">▾</span></div>
-            <div class="raw-body"><pre id="resultJson">Results</pre></div>
+        <div class="drawer-body" style="display:block;">
+          <div class="curlbar">
+            <div class="sub">generated curl command</div>
+            <div class="mono" id="curlCmd">Select a file to generate curl command.</div>
+          </div>
+          <div class="pathbar">
+            <div class="sub">path</div>
+            <div class="pathrow">
+              <button id="upBtn">Up</button>
+              <input id="pathInput" />
+              <button class="primary" id="hashBtn">Hash</button>
+            </div>
+          </div>
+          <div class="browser-results">
+            <div class="card">
+              <table>
+                <thead><tr><th id="nameSortHead" title="Sort by name">Name</th><th id="sizeSortHead" title="Sort by size">Size</th><th id="modifiedSortHead" title="Sort by modified date">Date Modified</th></tr></thead>
+                <tbody id="fileRows"></tbody>
+              </table>
+            </div>
+            <div class="results">
+              <div class="sub">results</div>
+              <div class="spinner" id="spinner"></div>
+              <div id="cards" class="cards"></div>
+              <div id="rawDrawer" class="collapsed">
+                <div class="raw-drawer-head" id="rawToggle"><span>Raw JSON</span><span class="raw-caret">▾</span></div>
+                <div class="raw-body"><pre id="resultJson">Results</pre></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1498,6 +1514,8 @@ var configPageHTML = `<!doctype html>
     }
 
     el('drawerToggle').onclick = () => el('settingsDrawer').classList.toggle('collapsed');
+    el('configDrawerToggle').onclick = () => el('configDrawer').classList.toggle('collapsed');
+    el('playgroundDrawerToggle').onclick = () => el('playgroundDrawer').classList.toggle('collapsed');
     el('saveBtn').onclick = saveEndpoint;
     el('testBtn').onclick = testEndpoint;
     el('newBtn').onclick = () => { clearForm(); status(''); };
