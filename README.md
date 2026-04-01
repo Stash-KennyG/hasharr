@@ -17,7 +17,7 @@ Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 - Refreshes endpoint version lazily when hovering endpoint name
 - Settings area is a collapsible drawer (collapsed by default when endpoints exist)
 - Includes a manual file browser + hash runner workflow:
-  - defaults to `/downloaded` if present, else `/`
+  - defaults to `/downloads` if present, else `/`
   - shows name, size, and modified date
   - supports up-folder navigation, single-select highlight, and double-click actions
   - generates curl command for selected file

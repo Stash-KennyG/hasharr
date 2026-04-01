@@ -355,8 +355,8 @@ func handleFSList(w http.ResponseWriter, r *http.Request) {
 
 	requested := strings.TrimSpace(r.URL.Query().Get("path"))
 	if requested == "" {
-		if st, err := os.Stat("/downloaded"); err == nil && st.IsDir() {
-			requested = "/downloaded"
+		if st, err := os.Stat("/downloads"); err == nil && st.IsDir() {
+			requested = "/downloads"
 		} else {
 			requested = "/"
 		}
