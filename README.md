@@ -38,6 +38,8 @@ The core goal is simple: spend less time filtering duplicates, and more time on 
 
 Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
 
+![hasharr UI overview](resources/about.png)
+
 - Supports CRUD for multiple endpoints
 - Stores entries in a local JSON file (default: `/config/config.json`)
 - Validates endpoint on add/update by querying GraphQL for Stash version
