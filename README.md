@@ -4,6 +4,36 @@
 
 `hasharr` is a container-friendly web service that computes a Stash-style video perceptual hash (`phash`) and basic media metadata from a local file path.
 
+## Design Intent
+
+`hasharr` is built to reduce manual Usenet cleanup work:
+
+- hash completed downloads quickly
+- compare against one or more Stash libraries using perceptual matching
+- automatically delete or tag likely duplicates before manual categorization
+- surface quality signals (resolution, duration, fps) and processing stats over time
+
+The core goal is simple: spend less time filtering duplicates, and more time on high-value curation.
+
+## Getting Started (SABnzbd workflow)
+
+1. Run `hasharr` (Docker example in the next section) and open `http://localhost:9995/`.
+2. In `⚙️ Settings`, add your Stash endpoint(s) and save.
+3. In `🐍 Configurator`, choose matching defaults:
+   - `Stash Endpoints` (`All` or a specific endpoint)
+   - `maxTimeDelta`
+   - `maxDistance`
+4. Click `Download Script` and, in the modal:
+   - set endpoint URL for your SAB runtime (container deployments typically use `http://hasharr:9995`)
+   - optionally click `Detect URL`
+   - click `Download`
+5. Place downloaded `sab_postProcess.py` in SABnzbd's scripts directory and mark executable.
+6. In SABnzbd, assign that script as the post-process script for target categories/jobs.
+7. Run a test download and verify:
+   - SAB script logs show matching/tag/delete decisions
+   - `GET /v1/stats-summary` increments counters
+   - UI stats ribbon and `Since` date update
+
 ## Root Configuration UI
 
 Visit `http://localhost:9995/` for a web UI to manage Stash endpoints.
@@ -55,6 +85,13 @@ Test request:
 curl -s -X POST http://localhost:9995/v1/phash \
   -H 'Content-Type: text/plain' \
   --data '"/downloaded/comp/man/vid/vid123.mp4"'
+```
+
+SAB script download example:
+
+```bash
+curl -L "http://localhost:9995/v1/sab-postprocess.py?stashIndex=-1&maxTimeDelta=1&maxDistance=0&hasharrUrl=http://hasharr:9995" -o sab_postProcess.py
+chmod +x sab_postProcess.py
 ```
 
 ## API
