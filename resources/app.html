@@ -204,12 +204,23 @@
                 </div>
                 <div class="row">
                   <div class="grow">
+                    <label>remotePath</label>
+                    <input id="profileRemotePath" placeholder="/mnt/user/media/news/comp/" />
+                  </div>
+                  <div class="grow">
+                    <label>hasharrPath</label>
+                    <input id="profileHasharrPath" placeholder="/downloads" />
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="grow">
                     <label>Max Time Delta (0-15)</label>
                     <input id="profileMaxTimeDelta" type="number" min="0" max="15" step="1" value="1" />
                   </div>
                   <div class="grow">
                     <label>Max Distance (0-8)</label>
-                    <input id="profileMaxDistance" type="number" min="0" max="8" step="1" value="0" />
+                    <input id="profileMaxDistance" type="range" min="0" max="8" step="1" value="0" />
+                    <span id="profileMaxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
                   </div>
                 </div>
                 <div class="row">
@@ -236,8 +247,10 @@
               </div>
               <div class="drawer-body single">
                 <div class="sub">context help</div>
-                <div>Profiles are intentionally generic. Any client that can send HTTP POST can target <span class="mono">/api/hash-service/{id}</span>.</div>
-                <div>Pick a profile by ID on the consumer side, and keep matching policy centralized in hasharr.</div>
+                <div>Any client that can send HTTP POST can target <span class="mono">/api/hash-service/{id}</span>.</div>
+                <div>Payload shape:</div>
+                <div class="mono">{ "filePath":"/path/to/file.mp4", "source":"optional", "jobId":"optional" }</div>
+                <div>Pick a profile by ID on the consumer side, and keep matching policy centralized in hasharr. Hasharr will delete or tag files appropriately based on profile configuration.</div>
               </div>
             </div>
             <div class="panel collapsed" id="profilesPythonDrawer">
@@ -265,6 +278,10 @@
                 </div>
                 <label>hasharr URL</label>
                 <input id="metubeHasharrURL" value="http://hasharr:9995" />
+                <div class="usage">
+                  <div>- Recommended: map to your hasharr container URL (example <strong>http://hasharr:9995</strong>).</div>
+                  <div>- If different in your network, set a custom URL or click <strong>Detect</strong> to use browser origin.</div>
+                </div>
                 <div class="row">
                   <button id="intDetectBtn" class="grow">Detect</button>
                   <button class="primary grow" id="intDownloadSabBtn">Download</button>
@@ -490,11 +507,14 @@
       selectedProfileId = 0;
       el('profileIDDisplay').value = '(new)';
       el('profileName').value = '';
+      el('profileRemotePath').value = '';
+      el('profileHasharrPath').value = '';
       el('profileEnabled').checked = true;
       el('profileApplyActions').checked = true;
       el('profileStashIndex').value = '-1';
       el('profileMaxTimeDelta').value = '1';
       el('profileMaxDistance').value = '0';
+      el('profileMaxDistanceLabel').textContent = '0';
       renderProfiles();
     }
 
@@ -502,11 +522,14 @@
       selectedProfileId = Number(p.id || 0);
       el('profileIDDisplay').value = String(selectedProfileId || '(new)');
       el('profileName').value = String(p.name || '');
+      el('profileRemotePath').value = String(p.remotePath || '');
+      el('profileHasharrPath').value = String(p.hasharrPath || '');
       el('profileEnabled').checked = !!p.enabled;
       el('profileApplyActions').checked = !!p.applyActions;
       el('profileStashIndex').value = String(Number(p.stashIndex ?? -1));
       el('profileMaxTimeDelta').value = String(clampInt(p.maxTimeDelta, 1, 0, 15));
       el('profileMaxDistance').value = String(clampInt(p.maxDistance, 0, 0, 8));
+      el('profileMaxDistanceLabel').textContent = el('profileMaxDistance').value;
       renderProfiles();
     }
 
@@ -525,6 +548,8 @@
     async function saveProfile(){
       const body = {
         name: String(el('profileName').value || '').trim(),
+        remotePath: String(el('profileRemotePath').value || '').trim(),
+        hasharrPath: String(el('profileHasharrPath').value || '').trim(),
         enabled: !!el('profileEnabled').checked,
         stashIndex: Number(el('profileStashIndex').value || -1),
         maxTimeDelta: clampInt(el('profileMaxTimeDelta').value, 1, 0, 15),
@@ -1087,6 +1112,7 @@
     el('intStashIndex').onchange = updateCurl;
     el('intMaxTimeDelta').onchange = () => { el('intMaxTimeDelta').value = String(clampInt(el('intMaxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('intMaxDistance').oninput = () => { el('intMaxDistanceLabel').textContent = el('intMaxDistance').value; updateCurl(); };
+    el('profileMaxDistance').oninput = () => { el('profileMaxDistanceLabel').textContent = el('profileMaxDistance').value; };
     el('intDetectBtn').onclick = () => { el('metubeHasharrURL').value = window.location.origin || 'http://hasharr:9995'; };
     el('downloadSabBtn').onclick = openSABModal;
     el('intDownloadSabBtn').onclick = () => {

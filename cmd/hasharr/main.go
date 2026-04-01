@@ -73,6 +73,8 @@ type hashServiceRunRequest struct {
 type hashServiceProfileRequest struct {
 	Name         string  `json:"name"`
 	Enabled      bool    `json:"enabled"`
+	RemotePath   string  `json:"remotePath"`
+	HasharrPath  string  `json:"hasharrPath"`
 	StashIndex   int     `json:"stashIndex"`
 	MaxTimeDelta float64 `json:"maxTimeDelta"`
 	MaxDistance  int     `json:"maxDistance"`
@@ -526,6 +528,8 @@ func handleHashServiceProfiles(w http.ResponseWriter, r *http.Request) {
 		out, err := hashServiceStore.Upsert(r.Context(), hashservice.Profile{
 			Name:         strings.TrimSpace(req.Name),
 			Enabled:      req.Enabled,
+			RemotePath:   strings.TrimSpace(req.RemotePath),
+			HasharrPath:  strings.TrimSpace(req.HasharrPath),
 			StashIndex:   req.StashIndex,
 			MaxTimeDelta: req.MaxTimeDelta,
 			MaxDistance:  req.MaxDistance,
@@ -567,6 +571,8 @@ func handleHashServiceProfileByID(w http.ResponseWriter, r *http.Request) {
 			ID:           id,
 			Name:         strings.TrimSpace(req.Name),
 			Enabled:      req.Enabled,
+			RemotePath:   strings.TrimSpace(req.RemotePath),
+			HasharrPath:  strings.TrimSpace(req.HasharrPath),
 			StashIndex:   req.StashIndex,
 			MaxTimeDelta: req.MaxTimeDelta,
 			MaxDistance:  req.MaxDistance,
@@ -619,6 +625,9 @@ func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
 	if req.FilePath == "" {
 		writeErr(w, http.StatusBadRequest, "filePath is required")
 		return
+	}
+	if profile.RemotePath != "" && profile.HasharrPath != "" && strings.HasPrefix(req.FilePath, profile.RemotePath) {
+		req.FilePath = profile.HasharrPath + strings.TrimPrefix(req.FilePath, profile.RemotePath)
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
