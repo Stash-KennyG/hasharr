@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"hasharr/internal/phash"
+	"hasharr/internal/recordstats"
 	"hasharr/internal/stashconfig"
 )
 
@@ -52,10 +54,24 @@ type sceneCardRequest struct {
 	SceneID     string `json:"sceneId"`
 }
 
+type recordStatsRequest struct {
+	SABNzoID            string  `json:"sabNzoID"`
+	FileName            string  `json:"fileName"`
+	FileSizeBytes       int64   `json:"fileSizeBytes"`
+	FileDurationSeconds float64 `json:"fileDurationSeconds"`
+	HashDurationSeconds float64 `json:"hashDurationSeconds"`
+	Outcome             int     `json:"outcome"`
+}
+
 var computePHash = phash.Compute
 var configStore *stashconfig.Store
+var statsStore *recordstats.Store
 var resourcesDir string
 var lookupMatches = stashconfig.LookupSceneMatchesWithOptions
+var buildID = "local"
+
+//go:embed VERSION
+var versionSeriesRaw string
 
 func main() {
 	addr := envOrDefault("HASHARR_ADDR", ":9995")
@@ -66,6 +82,12 @@ func main() {
 		log.Fatal(err)
 	}
 	configStore = store
+	statsPath := filepath.Join(filepath.Dir(configPath), "hasharr-stats.db")
+	sStore, err := recordstats.New(statsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	statsStore = sStore
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
@@ -82,6 +104,8 @@ func main() {
 	mux.HandleFunc("/v1/stash-endpoints", handleStashEndpoints)
 	mux.HandleFunc("/v1/stash-endpoints/", handleStashEndpointByID)
 	mux.HandleFunc("/v1/stash-endpoints-test", handleStashEndpointTest)
+	mux.HandleFunc("/v1/record-stats", handleRecordStats)
+	mux.HandleFunc("/v1/stats-summary", handleRecordStatsSummary)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -101,7 +125,22 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = io.WriteString(w, configPageHTML)
+	versionSeries := strings.TrimSpace(versionSeriesRaw)
+	if versionSeries == "" {
+		versionSeries = "0.0"
+	}
+	build := strings.TrimSpace(buildID)
+	if build == "" {
+		build = "local"
+	}
+	versionText := "hasharr v." + versionSeries + "." + build
+	versionTip := ""
+	if strings.EqualFold(build, "local") {
+		versionTip = "running from local resources, outside standard build methods."
+	}
+	html := strings.ReplaceAll(configPageHTML, "__HASHARR_VERSION__", versionText)
+	html = strings.ReplaceAll(html, "__HASHARR_VERSION_TOOLTIP__", versionTip)
+	_, _ = io.WriteString(w, html)
 }
 
 func handleFavicon(w http.ResponseWriter, r *http.Request) {
@@ -209,6 +248,65 @@ func clampFloatQuery(raw string, fallback, min, max float64) float64 {
 		return max
 	}
 	return f
+}
+
+func handleRecordStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req recordStatsRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	req.SABNzoID = strings.TrimSpace(req.SABNzoID)
+	req.FileName = strings.TrimSpace(req.FileName)
+	if req.FileName == "" {
+		writeErr(w, http.StatusBadRequest, "fileName is required")
+		return
+	}
+	if req.FileSizeBytes < 0 {
+		writeErr(w, http.StatusBadRequest, "fileSizeBytes must be >= 0")
+		return
+	}
+	if req.FileDurationSeconds < 0 {
+		writeErr(w, http.StatusBadRequest, "fileDurationSeconds must be >= 0")
+		return
+	}
+	if req.HashDurationSeconds < 0 {
+		writeErr(w, http.StatusBadRequest, "hashDurationSeconds must be >= 0")
+		return
+	}
+	if req.Outcome < 0 || req.Outcome > 15 {
+		writeErr(w, http.StatusBadRequest, "outcome must be between 0 and 15")
+		return
+	}
+	if err := statsStore.Insert(r.Context(), recordstats.Record{
+		SABNzoID:            req.SABNzoID,
+		FileName:            req.FileName,
+		FileSizeBytes:       req.FileSizeBytes,
+		FileDurationSeconds: req.FileDurationSeconds,
+		HashDurationSeconds: req.HashDurationSeconds,
+		Outcome:             req.Outcome,
+	}); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func handleRecordStatsSummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	s, err := statsStore.Summary(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, s)
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
@@ -648,6 +746,18 @@ var configPageHTML = `<!doctype html>
       <h1>hasharr</h1>
     </div>
 
+    <section class="stats-ribbon">
+      <div class="stats-item" title="Total number of per-file hash stats records."><div class="sub">Hashes</div><h2 id="statHashCount">0</h2></div>
+      <div class="stats-item" title="Sum of processed source file sizes in record-stats."><div class="sub">Data Hashed</div><h2 id="statDataSum">0 B</h2></div>
+      <div class="stats-item" title="Count of files deleted by exact-match quality logic."><div class="sub">Deletes</div><h2 id="statDeleteCount">0</h2></div>
+      <div class="stats-item" title="Count of files tagged with L (larger resolution)."><div class="sub">L Tags</div><h2 id="statLCount">0</h2></div>
+      <div class="stats-item" title="Count of files tagged with F (higher fps)."><div class="sub">F Tags</div><h2 id="statFCount">0</h2></div>
+      <div class="stats-item" title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></div>
+      <div class="stats-item" title="Sum of source video durations from record-stats."><div class="sub">Video Duration</div><h2 id="statVideoSum">0s</h2></div>
+      <div class="stats-item" title="Sum of hash processing elapsed time from record-stats."><div class="sub">Hash Time</div><h2 id="statHashTimeSum">0s</h2></div>
+      <div class="stats-item" title="Earliest timestamp in the stats table."><div class="sub">Since</div><h2 id="statSince">-</h2></div>
+    </section>
+
     <section class="panel" id="settingsDrawer">
       <div class="drawer-head" id="drawerToggle">
         <div>
@@ -739,6 +849,7 @@ var configPageHTML = `<!doctype html>
         </div>
       </div>
     </section>
+    <div class="sub footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
   </div>
 
   <script>
@@ -941,6 +1052,15 @@ var configPageHTML = `<!doctype html>
       return (i === 0 ? String(Math.round(v)) : v.toFixed(2).replace(/\.00$/, '')) + ' ' + units[i];
     }
 
+    function fmtBytesSI1(n){
+      const b = Number(n || 0);
+      if (!Number.isFinite(b) || b <= 0) return '0 B';
+      const units = ['B','KB','MB','GB','TB','PB'];
+      let v = b, i = 0;
+      while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
+      return (i === 0 ? String(Math.round(v)) : v.toFixed(1)) + units[i];
+    }
+
     function fmtDate(s){
       const v = String(s || '').trim();
       if (!v) return '';
@@ -963,6 +1083,106 @@ var configPageHTML = `<!doctype html>
       const d = new Date(v);
       if (Number.isNaN(d.getTime())) return v;
       return d.toLocaleDateString();
+    }
+
+    function fmtDurationLong(sec){
+      const s = Math.max(0, Number(sec || 0));
+      if (!Number.isFinite(s) || s <= 0) return '0s';
+      const units = [
+        { label: 'y', size: 31557600 },
+        { label: 'm', size: 2629800 },
+        { label: 'd', size: 86400 },
+        { label: 'h', size: 3600 },
+        { label: 'm', size: 60 },
+        { label: 's', size: 1 },
+      ];
+      let idx = units.findIndex((u) => s >= u.size);
+      if (idx === -1) idx = units.length - 1;
+
+      const majorUnit = units[idx];
+      const major = Math.floor(s / majorUnit.size);
+      if (idx === units.length - 1) return String(major) + majorUnit.label;
+
+      const nextUnit = units[idx + 1];
+      const remainder = s - (major * majorUnit.size);
+      const nextRaw = remainder / nextUnit.size;
+      const nextRounded = Math.floor(nextRaw * 10) / 10;
+      if (!(nextRounded > 0)) return String(major) + majorUnit.label;
+      return String(major) + majorUnit.label + ' ' + nextRounded.toFixed(1).replace(/\.0$/, '') + nextUnit.label;
+    }
+
+    function fmtDurationRaw(sec){
+      const s = Math.max(0, Number(sec || 0));
+      if (!Number.isFinite(s) || s <= 0) return '0s';
+      const units = [
+        { label: 'y', size: 31557600 },
+        { label: 'm', size: 2629800 },
+        { label: 'd', size: 86400 },
+        { label: 'h', size: 3600 },
+        { label: 'm', size: 60 },
+        { label: 's', size: 1 },
+      ];
+      let remain = Math.floor(s);
+      const parts = [];
+      for (const u of units) {
+        const n = Math.floor(remain / u.size);
+        if (n > 0) {
+          parts.push(String(n) + u.label);
+          remain -= n * u.size;
+        }
+      }
+      return parts.length ? parts.join(' ') : '0s';
+    }
+
+    function fmtSince(s){
+      const v = String(s || '').trim();
+      if (!v) return '-';
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) return v;
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
+
+    async function loadStatsSummary(){
+      try {
+        const res = await fetch('/v1/stats-summary');
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+        el('statHashCount').textContent = fmtCount(out.hashCount || 0);
+        el('statDataSum').textContent = fmtBytesSI1(out.dataBytesSum || 0);
+        el('statDeleteCount').textContent = fmtCount(out.deleteCount || 0);
+        el('statLCount').textContent = fmtCount(out.lCount || 0);
+        el('statFCount').textContent = fmtCount(out.fCount || 0);
+        el('statDCount').textContent = fmtCount(out.dCount || 0);
+        const videoSec = Number(out.videoDurationSumSec || 0);
+        const hashSec = Number(out.hashDurationSumSec || 0);
+        el('statVideoSum').textContent = fmtDurationLong(videoSec);
+        el('statHashTimeSum').textContent = fmtDurationLong(hashSec);
+        el('statVideoSum').title = fmtDurationRaw(videoSec);
+        el('statHashTimeSum').title = fmtDurationRaw(hashSec);
+        el('statSince').textContent = fmtSince(out.since || '');
+      } catch(_) {}
+    }
+
+    async function recordUIHashStats(targetPath, result, elapsedSec){
+      const hash = (result && result.hash) ? result.hash : {};
+      const payload = {
+        sabNzoID: 'ui',
+        fileName: basename(targetPath || ''),
+        fileSizeBytes: Number(selectedEntry && selectedEntry.path === targetPath ? (selectedEntry.size || 0) : 0),
+        fileDurationSeconds: Number(hash.duration || 0),
+        hashDurationSeconds: Number(elapsedSec || 0),
+        outcome: 0
+      };
+      try {
+        await fetch('/v1/record-stats', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+      } catch(_) {}
     }
 
     function normalizedFPS(v){
@@ -1204,6 +1424,7 @@ var configPageHTML = `<!doctype html>
       if (!target){ el('resultJson').textContent = 'No file selected.'; return; }
       showSpin(true);
       el('resultJson').textContent = 'Working...';
+      const startedAt = performance.now();
       const stashIndex = Number(el('stashIndex').value || -1);
       const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
       const maxDistance = Number(el('maxDistance').value || 0);
@@ -1216,7 +1437,10 @@ var configPageHTML = `<!doctype html>
       showSpin(false);
       el('resultJson').textContent = JSON.stringify(out, null, 2);
       if (res.ok) {
+        const elapsedSec = Math.max(0, (performance.now() - startedAt) / 1000);
+        await recordUIHashStats(target, out, elapsedSec);
         await renderMatchCards(out);
+        await loadStatsSummary();
       } else {
         el('cards').innerHTML = '';
       }
@@ -1248,6 +1472,6 @@ var configPageHTML = `<!doctype html>
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
-    Promise.all([loadEndpoints(), loadDir('')]).catch(err => { status(String(err),'err'); });
+    Promise.all([loadEndpoints(), loadDir(''), loadStatsSummary()]).catch(err => { status(String(err),'err'); });
   </script>
 </body></html>`

@@ -1,11 +1,12 @@
-FROM golang:1.24-bookworm AS build
+FROM golang:1.25-bookworm AS build
 WORKDIR /src
+ARG HASHARR_BUILD_ID=local
 
 COPY go.mod ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/hasharr ./cmd/hasharr
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-X main.buildID=${HASHARR_BUILD_ID}" -o /out/hasharr ./cmd/hasharr
 
 FROM debian:bookworm-slim
 RUN apt-get update \

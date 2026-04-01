@@ -5,6 +5,10 @@
     .brand { display:flex; align-items:center; gap:12px; margin:8px 0 10px; }
     .brand img { width:64px; height:64px; border-radius:8px; }
     .brand h1 { margin:0; font-size:56px; line-height:1; }
+    .stats-ribbon { display:flex; gap:8px; margin:6px 0 10px; overflow-x:auto; flex-wrap:nowrap; }
+    .stats-item { min-width:110px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; flex:0 0 auto; }
+    .stats-item .sub { margin-bottom:4px; }
+    .stats-item h2 { margin:0; font-size:24px; line-height:1.1; color:#f1f5fb; white-space:nowrap; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border-radius:8px; background:var(--panel2); }
     .drawer-title { font-weight:700; }
@@ -103,5 +107,6 @@
     .scene-file:first-child { border-top:0; }
     .scene-file > summary { padding:8px 10px; color:#edf3fa; font-weight:500; background:#273645; }
     .scene-file-body { padding:8px 10px; display:grid; gap:6px; background:#2f3e4d; }
+    .footer-version { margin-top:10px; text-align:center; margin-bottom:0; text-transform:none; }
     pre { margin:10px 0 0; white-space:pre-wrap; color:#c9d0dd; }
     @media (max-width: 1000px) { .drawer-body, .browser-results { grid-template-columns:1fr; } .brand h1 { font-size:40px; } }
