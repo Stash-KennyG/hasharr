@@ -58,7 +58,7 @@ VIDEO_EXTS = {
 
 
 def log(msg: str) -> None:
-    print(f"[hasharr-post] {msg}", flush=True)
+    print(f"[hasharr] {msg}", flush=True)
 
 
 def get_job_dir(argv: List[str]) -> Optional[Path]:
@@ -279,7 +279,6 @@ def main(argv: List[str]) -> int:
 
     videos = scan_videos(job_dir)
     if not videos:
-        log("No eligible video files found.")
         return 0
 
     outcome = Outcome()
@@ -301,25 +300,29 @@ def main(argv: List[str]) -> int:
             outcome.untouched += 1
 
     total = len(videos)
-    log(
-        "Summary: "
-        f"total={total}, deleted={outcome.deleted}, "
-        f"tagged_exact={outcome.tagged_exact}, tagged_potential={outcome.tagged_potential}, "
-        f"untouched={outcome.untouched}"
-    )
+    
 
     if outcome.deleted == total:
         try:
+            log(
+                "Summary: "
+                f"total={total}, deleted={outcome.deleted}, "
+                f"Deleted job directory because all eligible videos were deleted: {job_dir}"
+            )
             shutil.rmtree(job_dir)
-            log(f"Deleted job directory because all eligible videos were deleted: {job_dir}")
         except Exception as exc:
             log(f"Failed deleting job directory {job_dir}: {exc}")
-        # Caller requested 1 for this condition.
-        return 1
+            return 1
+        return 0
 
-    if outcome.tagged_potential > 0 and outcome.deleted == 0 and outcome.tagged_exact == 0:
-        # Caller requested a distinct potential-only code.
-        return 2
+    if outcome.deleted > 0 or outcome.tagged_exact > 0 or outcome.tagged_potential > 0:
+        log(
+            "Summary: "
+            f"total={total}, deleted={outcome.deleted}, "
+            f"tagged_exact={outcome.tagged_exact}, tagged_potential={outcome.tagged_potential}, "
+            f"untouched={outcome.untouched}"
+        )
+        return 0
 
     return 0
 

@@ -985,7 +985,7 @@ var configPageHTML = `<!doctype html>
     function renderFileDetails(file){
       return ''
         + '<div class="kv"><span class="k">Hash:</span><span class="v">' + (file.hash || '') + '</span></div>'
-        + '<div class="kv"><span class="k">PHash:</span><span class="v">' + (file.phash || '') + '</span></div>'
+        + '<div class="kv"><span class="k">Duration:</span><span class="v">' + (file.duration ? fmtDuration(file.duration) : '') + '</span></div>'
         + '<div class="kv"><span class="k">Path:</span><span class="v">' + (file.path || '') + '</span></div>'
         + '<div class="kv"><span class="k">File Size:</span><span class="v">' + (fmtBytes(file.fileSize) || '') + '</span></div>'
         + '<div class="kv"><span class="k">File Modified:</span><span class="v">' + (fmtISODate(file.fileModifiedTime) || '') + '</span></div>'
@@ -1027,6 +1027,35 @@ var configPageHTML = `<!doctype html>
       const title = card.title || match.title || '(untitled)';
       const titleHTML = title;
       const drawerSuffix = drawerSummarySuffix(sourceHash, card);
+      const primaryFile = {
+        hash: card.hash,
+        path: card.path,
+        fileSize: card.fileSize,
+        fileModifiedTime: card.fileModifiedTime,
+        resolutionX: card.resolutionX,
+        resolutionY: card.resolutionY,
+        frameRate: card.frameRate,
+        bitRate: card.bitRate,
+        videoCodec: card.videoCodec,
+        audioCodec: card.audioCodec,
+        duration: card.duration,
+      };
+      const drawerFiles = files.length ? files.map((f, i) => {
+        if (i !== 0) return f;
+        return {
+          hash: f.hash || primaryFile.hash,
+          path: f.path || primaryFile.path,
+          fileSize: f.fileSize || primaryFile.fileSize,
+          fileModifiedTime: f.fileModifiedTime || primaryFile.fileModifiedTime,
+          resolutionX: f.resolutionX || primaryFile.resolutionX,
+          resolutionY: f.resolutionY || primaryFile.resolutionY,
+          frameRate: f.frameRate || primaryFile.frameRate,
+          bitRate: f.bitRate || primaryFile.bitRate,
+          videoCodec: f.videoCodec || primaryFile.videoCodec,
+          audioCodec: f.audioCodec || primaryFile.audioCodec,
+          duration: f.duration || primaryFile.duration,
+        };
+      }) : [primaryFile];
       return '<div class="scene-card">'
         + '<div class="scene-media">'
         + (shot ? '<img class="scene-shot" loading="lazy" src="' + shot + '" alt="Scene image" />' : '<div class="scene-shot"></div>')
@@ -1038,22 +1067,16 @@ var configPageHTML = `<!doctype html>
         + '<div class="scene-card-section">'
         + (perf ? '<div class="scene-perfs">' + perf + '</div>' : '')
         + '<div class="scene-title">' + titleHTML + '</div>'
+        + '<div class="scene-phash"><span class="k">PHash:</span><span class="v">' + (card.phash || '') + '</span></div>'
         + '<details class="scene-drawer"><summary>ℹ️' + drawerSuffix + '</summary><div class="scene-drawer-body">'
-        + renderFileDetails({
-          hash: card.hash, phash: card.phash, path: card.path, fileSize: card.fileSize,
-          fileModifiedTime: card.fileModifiedTime, resolutionX: card.resolutionX, resolutionY: card.resolutionY,
-          frameRate: card.frameRate, bitRate: card.bitRate, videoCodec: card.videoCodec, audioCodec: card.audioCodec
-        })
-        + (files.length > 1 ? (
-            '<div class="scene-file-list">'
-            + files.map((f, i) =>
-              '<details class="scene-file"' + (i === 0 ? ' open' : '') + '>'
-              + '<summary>' + (basename(f.path) || ('File ' + (i + 1))) + (i === 0 ? ' <span style="opacity:.8;">(Primary file)</span>' : '') + '</summary>'
-              + '<div class="scene-file-body">' + renderFileDetails(f) + '</div>'
-              + '</details>'
-            ).join('')
-            + '</div>'
-          ) : '')
+        + '<div class="scene-file-list">'
+        + drawerFiles.map((f, i) =>
+          '<details class="scene-file"' + (i === 0 ? ' open' : '') + '>'
+          + '<summary>' + (basename(f.path) || ('File ' + (i + 1))) + (i === 0 ? ' <span style="opacity:.8;">(Primary file)</span>' : '') + '</summary>'
+          + '<div class="scene-file-body">' + renderFileDetails(f) + '</div>'
+          + '</details>'
+        ).join('')
+        + '</div>'
         //+ (url ? ('<div><a href="' + url + '" target="_blank" rel="noopener noreferrer">Open scene</a></div>') : '')
         + '</div></details>'
         + '<div class="scene-footer"><span>' + (card.studio || '') + '</span><span>0 views</span><span>' + fmtSceneDate(card.date || '') + '</span></div>'
