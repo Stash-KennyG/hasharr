@@ -180,6 +180,22 @@
         </div>
         <div class="drawer-body">
           <div class="card">
+            <h3>Python Configurator</h3>
+            <div class="sub">sab script download configuration</div>
+            <div class="pathrow">
+              <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
+              <select id="intStashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+                <option value="-1">All</option>
+              </select>
+              <label style="margin:0;min-width:95px;">maxTimeDelta</label>
+              <input id="intMaxTimeDelta" type="number" min="0" max="15" step="1" value="1" style="width:90px;" />
+              <label style="margin:0;min-width:88px;">maxDistance</label>
+              <input id="intMaxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
+              <span id="intMaxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
+              <button class="primary" id="intDownloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
+            </div>
+          </div>
+          <div class="card">
             <h3>MeTube Pairing</h3>
             <div class="sub">use these values in MeTube</div>
             <label>HASHARR_URL</label>
@@ -326,6 +342,7 @@
     function renderStashIndexOptions(){
       fillStashSelect(el('stashIndex'));
       fillStashSelect(el('pgStashIndex'));
+      fillStashSelect(el('intStashIndex'));
       fillStashSelect(el('profileStashIndex'));
       updateCurl();
     }
@@ -392,6 +409,13 @@
           stashIndex: Number(el('pgStashIndex').value || -1),
           maxTimeDelta: clampInt(el('pgMaxTimeDelta').value, 1, 0, 15),
           maxDistance: Number(el('pgMaxDistance').value || 0),
+        };
+      }
+      if (pageBootstrap === 'integrations') {
+        return {
+          stashIndex: Number(el('intStashIndex').value || -1),
+          maxTimeDelta: clampInt(el('intMaxTimeDelta').value, 1, 0, 15),
+          maxDistance: Number(el('intMaxDistance').value || 0),
         };
       }
       return {
@@ -1016,7 +1040,11 @@
     el('pgStashIndex').onchange = updateCurl;
     el('pgMaxTimeDelta').onchange = () => { el('pgMaxTimeDelta').value = String(clampInt(el('pgMaxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('pgMaxDistance').oninput = () => { el('pgMaxDistanceLabel').textContent = el('pgMaxDistance').value; updateCurl(); };
+    el('intStashIndex').onchange = updateCurl;
+    el('intMaxTimeDelta').onchange = () => { el('intMaxTimeDelta').value = String(clampInt(el('intMaxTimeDelta').value, 1, 0, 15)); updateCurl(); };
+    el('intMaxDistance').oninput = () => { el('intMaxDistanceLabel').textContent = el('intMaxDistance').value; updateCurl(); };
     el('downloadSabBtn').onclick = openSABModal;
+    el('intDownloadSabBtn').onclick = openSABModal;
     el('profileNewBtn').onclick = () => { clearProfileForm(); profileStatus(''); };
     el('profileSaveBtn').onclick = saveProfile;
     el('profileDeleteBtn').onclick = deleteProfile;
@@ -1068,11 +1096,11 @@
       el('aboutDrawer').style.display = 'none';
       el('workflowSection').style.display = '';
       el('settingsDrawer').style.display = 'none';
-      el('configDrawer').style.display = '';
+      el('configDrawer').style.display = 'none';
       el('metubeSettingsPanel').style.display = '';
       el('playgroundDrawer').style.display = 'none';
       el('settingsDrawer').classList.add('collapsed');
-      el('configDrawer').classList.remove('collapsed');
+      el('configDrawer').classList.add('collapsed');
       el('metubeSettingsPanel').classList.remove('collapsed');
       el('playgroundDrawer').classList.add('collapsed');
     }
