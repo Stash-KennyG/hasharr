@@ -35,7 +35,7 @@ from urllib import error, request
 DEFAULT_STASH_INDEX = globals().get("DEFAULT_STASH_INDEX", -1)
 DEFAULT_MAX_TIME_DELTA = globals().get("DEFAULT_MAX_TIME_DELTA", 1.0)
 DEFAULT_MAX_DISTANCE = globals().get("DEFAULT_MAX_DISTANCE", 0)
-DEFAULT_HASHARR_URL = globals().get("DEFAULT_HASHARR_URL", "http://127.0.0.1:9995")
+DEFAULT_HASHARR_URL = globals().get("DEFAULT_HASHARR_URL", "http://hasharr:9995")
 
 
 VIDEO_EXTS = {
@@ -222,11 +222,15 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             max_fps = max(max_fps, normalize_fps(card.get("frameRate")))
 
         reasons: List[str] = []
+        
         if source_y > max_y:
+            log(f"  tag reason L: source resolution_y {source_y:.0f} > matched {max_y:.0f}")
             reasons.append("L")
         if source_duration > max_dur:
+            log(f"  tag reason D: source duration {source_duration:.2f}s > matched {max_dur:.2f}s")
             reasons.append("D")
         if source_fps > max_fps:
+            log(f"  tag reason F: source fps {source_fps:.2f} > matched {max_fps:.2f} (fps normalized, cap=30)")
             reasons.append("F")
 
         has_advantage = bool(reasons)
@@ -237,6 +241,12 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             return "deleted", None
 
         if reasons:
+            log(
+                "  exact comparison: "
+                f"resY src={source_y:.0f} vs max={max_y:.0f}; "
+                f"dur src={source_duration:.2f} vs max={max_dur:.2f}; "
+                f"fps src={source_fps:.2f} vs max={max_fps:.2f}"
+            )
             tagged = rename_with_prefix(path, f"[{''.join(reasons)}]")
             log(f"  exact matches found; better by {''.join(reasons)} -> tagged as {tagged.name}")
             return "tagged_exact", tagged
