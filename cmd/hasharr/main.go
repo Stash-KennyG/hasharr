@@ -135,6 +135,13 @@ func handleSABPostProcessScript(w http.ResponseWriter, r *http.Request) {
 	stashIndex := clampIntQuery(r.URL.Query().Get("stashIndex"), -1, -1, 99999)
 	maxTimeDelta := clampFloatQuery(r.URL.Query().Get("maxTimeDelta"), 1, 0, 15)
 	maxDistance := clampIntQuery(r.URL.Query().Get("maxDistance"), 0, 0, 8)
+	hasharrURL := strings.TrimSpace(r.URL.Query().Get("hasharrUrl"))
+	if hasharrURL == "" {
+		hasharrURL = strings.TrimSpace(r.Header.Get("Origin"))
+	}
+	if hasharrURL == "" {
+		hasharrURL = "http://hasharr:9995"
+	}
 
 	scriptPath := filepath.Join(resourcesDir, "sab_postProcess.py")
 	b, err := os.ReadFile(scriptPath)
@@ -146,7 +153,8 @@ func handleSABPostProcessScript(w http.ResponseWriter, r *http.Request) {
 	cfg := "\n# Download-time defaults from hasharr configurator UI.\n" +
 		"DEFAULT_STASH_INDEX = " + strconv.Itoa(stashIndex) + "\n" +
 		"DEFAULT_MAX_TIME_DELTA = " + strconv.FormatFloat(maxTimeDelta, 'f', 3, 64) + "\n" +
-		"DEFAULT_MAX_DISTANCE = " + strconv.Itoa(maxDistance) + "\n\n"
+		"DEFAULT_MAX_DISTANCE = " + strconv.Itoa(maxDistance) + "\n" +
+		"DEFAULT_HASHARR_URL = " + strconv.Quote(hasharrURL) + "\n\n"
 
 	out := injectPythonDefaults(src, cfg)
 
@@ -696,6 +704,10 @@ var configPageHTML = `<!doctype html>
           <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
           <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
         </div>
+        <div class="pathrow" style="margin-top:8px;">
+          <label style="margin:0;min-width:122px;">Hasharr URL:</label>
+          <input id="hasharrUrl" style="margin:0;" placeholder="http://hasharr:9995" />
+        </div>
       </div>
       <div class="curlbar">
         <div class="sub">generated curl command</div>
@@ -859,10 +871,12 @@ var configPageHTML = `<!doctype html>
       const stashIndex = Number(el('stashIndex').value || -1);
       const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
       const maxDistance = Number(el('maxDistance').value || 0);
+      const hasharrUrl = String(el('hasharrUrl').value || '').trim();
       const q = new URLSearchParams();
       q.set('stashIndex', String(stashIndex));
       q.set('maxTimeDelta', String(maxTimeDelta));
       q.set('maxDistance', String(maxDistance));
+      if (hasharrUrl) q.set('hasharrUrl', hasharrUrl);
       return '/v1/sab-postprocess.py?' + q.toString();
     }
 
@@ -1230,6 +1244,7 @@ var configPageHTML = `<!doctype html>
     el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
     el('downloadSabBtn').onclick = () => { window.location.href = sabScriptURL(); };
+    el('hasharrUrl').value = window.location.origin || 'http://hasharr:9995';
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 

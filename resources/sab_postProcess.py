@@ -35,6 +35,7 @@ from urllib import error, request
 DEFAULT_STASH_INDEX = globals().get("DEFAULT_STASH_INDEX", -1)
 DEFAULT_MAX_TIME_DELTA = globals().get("DEFAULT_MAX_TIME_DELTA", 1.0)
 DEFAULT_MAX_DISTANCE = globals().get("DEFAULT_MAX_DISTANCE", 0)
+DEFAULT_HASHARR_URL = globals().get("DEFAULT_HASHARR_URL", "http://127.0.0.1:9995")
 
 
 VIDEO_EXTS = {
@@ -183,6 +184,7 @@ def flatten_matches(lookup_result: Dict) -> List[Tuple[str, Dict]]:
 
 
 def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
+    log(f"Processing: {path}")
     exact_payload: Dict[str, object] = {
         "filePath": str(path),
         "maxTimeDelta": float(DEFAULT_MAX_TIME_DELTA),
@@ -244,6 +246,7 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             log(f"  exact matches found; better by {''.join(reasons)} -> tagged as {tagged.name}")
             return "tagged_exact", tagged
 
+        log("  exact matches found; kept (largest by file size)")
         return "untouched", path
 
     optimistic_delta = min(15.0, source_duration * 0.02 if source_duration > 0 else 0.0)
@@ -258,7 +261,12 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
         log(f"  no exact matches; potential matches found -> tagged as {tagged.name}")
         return "tagged_potential", tagged
 
+    log("  no exact/potential matches -> left unchanged")
     return "untouched", path
+
+def clean_exit():
+    print(f"Completed", flush=True)
+    sys.exit(0)
 
 
 def main(argv: List[str]) -> int:
@@ -270,10 +278,13 @@ def main(argv: List[str]) -> int:
         log(f"Job directory does not exist: {job_dir}")
         return 0
 
-    base_url = os.environ.get("HASHARR_URL", "http://127.0.0.1:9995").strip()
+    base_url = os.environ.get("HASHARR_URL", str(DEFAULT_HASHARR_URL)).strip()
+    log(f"Using hasharr endpoint: {base_url}")
+    log(f"Scanning directory: {job_dir}")
 
     videos = scan_videos(job_dir)
     if not videos:
+        log("No eligible video files found.")
         return 0
 
     outcome = Outcome()
@@ -295,33 +306,33 @@ def main(argv: List[str]) -> int:
             outcome.untouched += 1
 
     total = len(videos)
+    
+
     if outcome.deleted == total:
         try:
-            shutil.rmtree(job_dir)
             log(
                 "Summary: "
                 f"total={total}, deleted={outcome.deleted}, "
-                f"Deleted job directory because all eligible videos were deleted: {job_dir}"
+                f"Deleting job directory because all eligible videos were deleted: {job_dir}"
+                
             )
+            shutil.rmtree(job_dir)
+            log("Empty folder deleted successfully")
         except Exception as exc:
-            log(
-                "Exception: "
-                f"total={total}, deleted={outcome.deleted}, "
-                f"Failed deleting job directory {job_dir}: {exc}"
-                )
+            log(f"Failed deleting job directory {job_dir}: {exc}")
             return 1
-        return 0
+        clean_exit()
 
-    if outcome.deleted > 0 or outcome.tagged_exact > 0 or outcome.tagged_potential > 0:
+    if outcome.tagged_potential > 0 and outcome.deleted == 0 and outcome.tagged_exact == 0:
         log(
             "Summary: "
             f"total={total}, deleted={outcome.deleted}, "
             f"tagged_exact={outcome.tagged_exact}, tagged_potential={outcome.tagged_potential}, "
             f"untouched={outcome.untouched}"
         )
-        return 0
+        clean_exit()
 
-    return 0
+    clean_exit()
 
 
 if __name__ == "__main__":
