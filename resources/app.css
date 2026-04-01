@@ -5,10 +5,11 @@
     .brand { display:flex; align-items:center; gap:12px; margin:8px 0 10px; }
     .brand img { width:64px; height:64px; border-radius:8px; }
     .brand h1 { margin:0; font-size:56px; line-height:1; }
-    .stats-ribbon { display:flex; gap:8px; margin:6px 0 10px; overflow-x:auto; flex-wrap:nowrap; }
-    .stats-item { min-width:110px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; flex:0 0 auto; }
-    .stats-item .sub { margin-bottom:4px; }
-    .stats-item h2 { margin:0; font-size:24px; line-height:1.1; color:#f1f5fb; white-space:nowrap; }
+    .stats-ribbon { margin:6px 0 10px; overflow-x:auto; }
+    .stats-table { width:max-content; min-width:100%; border-collapse:separate; border-spacing:8px 0; }
+    .stats-table td { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; white-space:nowrap; }
+    .stats-table .sub { margin-bottom:4px; }
+    .stats-table h2 { margin:0; font-size:24px; line-height:1.1; color:#f1f5fb; white-space:nowrap; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border-radius:8px; background:var(--panel2); }
     .drawer-title { font-weight:700; }
@@ -41,6 +42,12 @@
     .pathbar, .curlbar { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px; }
     .pathrow { display:flex; gap:8px; align-items:center; }
     .pathrow input { margin:0; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(8, 10, 14, 0.72); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px; }
+    .modal-backdrop.hidden { display:none; }
+    .modal-card { width:min(560px, 100%); background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; box-shadow:0 18px 42px rgba(0,0,0,.45); }
+    .modal-card h3 { margin:0 0 8px; }
+    .modal-actions { margin-top:10px; }
+    .modal-actions button { margin-top:0; }
     input[type="range"] { -webkit-appearance:none; appearance:none; background:transparent; }
     input[type="range"]::-webkit-slider-runnable-track { height:6px; background:#c7ccd5; border-radius:999px; }
     input[type="range"]::-webkit-slider-thumb {

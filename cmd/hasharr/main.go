@@ -747,15 +747,19 @@ var configPageHTML = `<!doctype html>
     </div>
 
     <section class="stats-ribbon">
-      <div class="stats-item" title="Total number of per-file hash stats records."><div class="sub">Hashes</div><h2 id="statHashCount">0</h2></div>
-      <div class="stats-item" title="Sum of processed source file sizes in record-stats."><div class="sub">Data Hashed</div><h2 id="statDataSum">0 B</h2></div>
-      <div class="stats-item" title="Count of files deleted by exact-match quality logic."><div class="sub">Deletes</div><h2 id="statDeleteCount">0</h2></div>
-      <div class="stats-item" title="Count of files tagged with L (larger resolution)."><div class="sub">L Tags</div><h2 id="statLCount">0</h2></div>
-      <div class="stats-item" title="Count of files tagged with F (higher fps)."><div class="sub">F Tags</div><h2 id="statFCount">0</h2></div>
-      <div class="stats-item" title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></div>
-      <div class="stats-item" title="Sum of source video durations from record-stats."><div class="sub">Video Duration</div><h2 id="statVideoSum">0s</h2></div>
-      <div class="stats-item" title="Sum of hash processing elapsed time from record-stats."><div class="sub">Hash Time</div><h2 id="statHashTimeSum">0s</h2></div>
-      <div class="stats-item" title="Earliest timestamp in the stats table."><div class="sub">Since</div><h2 id="statSince">-</h2></div>
+      <table class="stats-table">
+        <tr>
+          <td title="Total number of per-file hash stats records."><div class="sub">Hashes</div><h2 id="statHashCount">0</h2></td>
+          <td title="Sum of processed source file sizes in record-stats."><div class="sub">Data Hashed</div><h2 id="statDataSum">0 B</h2></td>
+          <td title="Count of files deleted by exact-match quality logic."><div class="sub">Deletes</div><h2 id="statDeleteCount">0</h2></td>
+          <td title="Count of files tagged with L (larger resolution)."><div class="sub">L Tags</div><h2 id="statLCount">0</h2></td>
+          <td title="Count of files tagged with F (higher fps)."><div class="sub">F Tags</div><h2 id="statFCount">0</h2></td>
+          <td title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></td>
+          <td title="Sum of source video durations from record-stats."><div class="sub">Video Duration</div><h2 id="statVideoSum">0s</h2></td>
+          <td title="Sum of hash processing elapsed time from record-stats."><div class="sub">Hash Time</div><h2 id="statHashTimeSum">0s</h2></td>
+          <td title="Earliest timestamp in the stats table."><div class="sub">Since</div><h2 id="statSince">-</h2></td>
+        </tr>
+      </table>
     </section>
 
     <section class="panel" id="settingsDrawer">
@@ -814,10 +818,6 @@ var configPageHTML = `<!doctype html>
           <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
           <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
         </div>
-        <div class="pathrow" style="margin-top:8px;">
-          <label style="margin:0;min-width:122px;">Hasharr URL:</label>
-          <input id="hasharrUrl" style="margin:0;" placeholder="http://hasharr:9995" />
-        </div>
       </div>
       <div class="curlbar">
         <div class="sub">generated curl command</div>
@@ -849,6 +849,21 @@ var configPageHTML = `<!doctype html>
         </div>
       </div>
     </section>
+    <div id="sabModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="sabModalTitle">
+      <div class="modal-card">
+        <h3 id="sabModalTitle">Download SAB Post-Process Script</h3>
+        <div class="sub" style="text-transform:none; letter-spacing:normal;">
+          Please specify endpoint URL. If running it in a container it is suggested to use your container name and leave it as http://hasharr:9995.
+        </div>
+        <label for="sabModalEndpoint">Endpoint URL</label>
+        <input id="sabModalEndpoint" type="text" placeholder="https://hasharr:9995" />
+        <div class="row modal-actions">
+          <button id="sabModalCancelBtn" class="grow">Cancel</button>
+          <button id="sabModalDetectBtn" class="grow">Detect URL</button>
+          <button id="sabModalDownloadBtn" class="primary grow">Download</button>
+        </div>
+      </div>
+    </div>
     <div class="sub footer-version" title="__HASHARR_VERSION_TOOLTIP__">__HASHARR_VERSION__</div>
   </div>
 
@@ -978,17 +993,29 @@ var configPageHTML = `<!doctype html>
       el('curlCmd').textContent = cmd;
     }
 
-    function sabScriptURL(){
+    function sabScriptURL(endpointURL){
       const stashIndex = Number(el('stashIndex').value || -1);
       const maxTimeDelta = clampInt(el('maxTimeDelta').value, 1, 0, 15);
       const maxDistance = Number(el('maxDistance').value || 0);
-      const hasharrUrl = String(el('hasharrUrl').value || '').trim();
+      const hasharrUrl = String(endpointURL || '').trim();
       const q = new URLSearchParams();
       q.set('stashIndex', String(stashIndex));
       q.set('maxTimeDelta', String(maxTimeDelta));
       q.set('maxDistance', String(maxDistance));
       if (hasharrUrl) q.set('hasharrUrl', hasharrUrl);
       return '/v1/sab-postprocess.py?' + q.toString();
+    }
+
+    function openSABModal(){
+      const modal = el('sabModal');
+      const input = el('sabModalEndpoint');
+      input.value = 'https://hasharr:9995';
+      modal.classList.remove('hidden');
+      setTimeout(() => input.focus(), 0);
+    }
+
+    function closeSABModal(){
+      el('sabModal').classList.add('hidden');
     }
 
     function clampInt(v, fallback, min, max){
@@ -1467,8 +1494,19 @@ var configPageHTML = `<!doctype html>
     el('stashIndex').onchange = updateCurl;
     el('maxTimeDelta').onchange = () => { el('maxTimeDelta').value = String(clampInt(el('maxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('maxDistance').oninput = () => { el('maxDistanceLabel').textContent = el('maxDistance').value; updateCurl(); };
-    el('downloadSabBtn').onclick = () => { window.location.href = sabScriptURL(); };
-    el('hasharrUrl').value = window.location.origin || 'http://hasharr:9995';
+    el('downloadSabBtn').onclick = openSABModal;
+    el('sabModalCancelBtn').onclick = closeSABModal;
+    el('sabModalDetectBtn').onclick = () => {
+      el('sabModalEndpoint').value = window.location.origin || 'http://hasharr:9995';
+    };
+    el('sabModalDownloadBtn').onclick = () => {
+      const endpointURL = String(el('sabModalEndpoint').value || '').trim();
+      window.location.href = sabScriptURL(endpointURL);
+      closeSABModal();
+    };
+    el('sabModal').onclick = (e) => {
+      if (e.target && e.target.id === 'sabModal') closeSABModal();
+    };
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
