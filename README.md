@@ -140,13 +140,40 @@ Downloads a SABnzbd post-process Python script (`sab_postProcess.py`) with defau
 - `stashIndex` (default `-1`)
 - `maxTimeDelta` (default `1`, clamped to `0..15`)
 - `maxDistance` (default `0`, clamped to `0..8`)
+- `hasharrUrl` (default request origin, fallback `http://hasharr:9995`)
 
 Example:
 
 ```bash
-curl -L "http://localhost:9995/v1/sab-postprocess.py?stashIndex=-1&maxTimeDelta=1&maxDistance=0" -o sab_postProcess.py
+curl -L "http://localhost:9995/v1/sab-postprocess.py?stashIndex=-1&maxTimeDelta=1&maxDistance=0&hasharrUrl=http://hasharr:9995" -o sab_postProcess.py
 chmod +x sab_postProcess.py
 ```
+
+### `POST /v1/record-stats`
+
+Stores per-file SAB post-process outcomes in SQLite.
+
+Body:
+
+```json
+{
+  "sabNzoID": "SAB_JOB_ID",
+  "fileName": "example.mp4",
+  "fileSizeBytes": 123456789,
+  "fileDurationSeconds": 2089.28,
+  "hashDurationSeconds": 2.71,
+  "outcome": 7
+}
+```
+
+Outcome is a bitmask (0-15):
+
+- `8`: Deleted
+- `4`: L (larger resolution)
+- `2`: D (longer duration, >1s threshold)
+- `1`: F (higher FPS, normalized/capped at 30)
+
+Stored in `/config/hasharr-stats.db` (same directory as config JSON).
 
 ## SABnzbd post-process script
 
@@ -168,12 +195,12 @@ Behavior summary:
 - optimistic sweep when no exact match:
   - `maxDistance=8`, `maxTimeDelta=min(15, duration*0.02)`
   - prefixes with `[P]` if potential match found
+- posts one `/v1/record-stats` row per processed file
 
 Exit codes:
 
 - `0`: normal completion
-- `1`: all eligible videos deleted (script also attempts to remove job folder)
-- `2`: potential-only outcomes
+- `1`: failed deleting job folder after deleting all eligible videos
 
 ## Run locally
 

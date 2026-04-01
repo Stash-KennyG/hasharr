@@ -14,9 +14,9 @@ Flow:
    - If no exact matches:
        - Optimistic sweep: maxDistance=8, maxTimeDelta=min(15, duration*0.02)
        - If any match found, prepend [P]
-4) If every scanned video got deleted, delete the job directory and exit 1.
-5) If only potentials were found (no exact outcomes), exit 2.
-6) Otherwise exit 0.
+4) If every scanned video got deleted, delete the job directory.
+5) Post one record-stats row per processed file.
+6) Exit 0 on success paths, 1 only if deleting an empty job folder fails.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -36,6 +37,11 @@ DEFAULT_STASH_INDEX = globals().get("DEFAULT_STASH_INDEX", -1)
 DEFAULT_MAX_TIME_DELTA = globals().get("DEFAULT_MAX_TIME_DELTA", 1.0)
 DEFAULT_MAX_DISTANCE = globals().get("DEFAULT_MAX_DISTANCE", 0)
 DEFAULT_HASHARR_URL = globals().get("DEFAULT_HASHARR_URL", "http://hasharr:9995")
+
+BIT_DELETED = 8
+BIT_LARGER = 4
+BIT_DURATION = 2
+BIT_FPS = 1
 
 
 VIDEO_EXTS = {
@@ -114,6 +120,26 @@ def fetch_card(base_url: str, endpoint_url: str, scene_id: str) -> Dict:
     )
 
 
+def post_record_stats(
+    base_url: str,
+    sab_nzo_id: str,
+    file_name: str,
+    file_size_bytes: int,
+    file_duration_seconds: float,
+    hash_duration_seconds: float,
+    outcome_mask: int,
+) -> None:
+    payload = {
+        "sabNzoID": sab_nzo_id,
+        "fileName": file_name,
+        "fileSizeBytes": int(file_size_bytes),
+        "fileDurationSeconds": float(file_duration_seconds),
+        "hashDurationSeconds": float(hash_duration_seconds),
+        "outcome": int(outcome_mask),
+    }
+    api_post_json(base_url, "/v1/record-stats", payload)
+
+
 def normalize_fps(v: object) -> float:
     try:
         f = float(v)
@@ -169,6 +195,15 @@ class Outcome:
     untouched: int = 0
 
 
+@dataclass
+class ProcessResult:
+    status: str
+    final_path: Optional[Path]
+    outcome_mask: int
+    file_duration_seconds: float
+    hash_duration_seconds: float
+
+
 def flatten_matches(lookup_result: Dict) -> List[Tuple[str, Dict]]:
     rows: List[Tuple[str, Dict]] = []
     for lookup in lookup_result.get("lookups", []) or []:
@@ -183,8 +218,9 @@ def flatten_matches(lookup_result: Dict) -> List[Tuple[str, Dict]]:
     return rows
 
 
-def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
+def process_file(path: Path, base_url: str) -> ProcessResult:
     log(f"Processing: {path}")
+    started = time.monotonic()
     exact_payload: Dict[str, object] = {
         "filePath": str(path),
         "maxTimeDelta": float(DEFAULT_MAX_TIME_DELTA),
@@ -193,6 +229,7 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
     if int(DEFAULT_STASH_INDEX) != -1:
         exact_payload["stashIndex"] = int(DEFAULT_STASH_INDEX)
     exact = api_post_json(base_url, "/v1/phash-match", exact_payload)
+    hash_elapsed = time.monotonic() - started
     source_hash = exact.get("hash", {}) or {}
     source_y = safe_num(source_hash.get("resolution_y"))
     source_duration = safe_num(source_hash.get("duration"))
@@ -248,7 +285,13 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
         if not has_advantage:
             path.unlink(missing_ok=True)
             log("  exact matches found; file is not better -> deleted")
-            return "deleted", None
+            return ProcessResult(
+                status="deleted",
+                final_path=None,
+                outcome_mask=BIT_DELETED,
+                file_duration_seconds=source_duration,
+                hash_duration_seconds=hash_elapsed,
+            )
 
         if reasons:
             log(
@@ -259,10 +302,29 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             )
             tagged = rename_with_prefix(path, f"[{''.join(reasons)}]")
             log(f"  exact matches found; better by {''.join(reasons)} -> tagged as {tagged.name}")
-            return "tagged_exact", tagged
+            mask = 0
+            if "L" in reasons:
+                mask |= BIT_LARGER
+            if "D" in reasons:
+                mask |= BIT_DURATION
+            if "F" in reasons:
+                mask |= BIT_FPS
+            return ProcessResult(
+                status="tagged_exact",
+                final_path=tagged,
+                outcome_mask=mask,
+                file_duration_seconds=source_duration,
+                hash_duration_seconds=hash_elapsed,
+            )
 
         log("  exact matches found; kept (L/D/F advantage)")
-        return "untouched", path
+        return ProcessResult(
+            status="untouched",
+            final_path=path,
+            outcome_mask=0,
+            file_duration_seconds=source_duration,
+            hash_duration_seconds=hash_elapsed,
+        )
 
     optimistic_delta = min(15.0, source_duration * 0.02 if source_duration > 0 else 0.0)
     optimistic = api_post_json(
@@ -274,10 +336,22 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
     if optimistic_rows:
         tagged = rename_with_prefix(path, "[P]")
         log(f"  no exact matches; potential matches found -> tagged as {tagged.name}")
-        return "tagged_potential", tagged
+        return ProcessResult(
+            status="tagged_potential",
+            final_path=tagged,
+            outcome_mask=0,
+            file_duration_seconds=source_duration,
+            hash_duration_seconds=hash_elapsed,
+        )
 
     log("  no exact/potential matches -> left unchanged")
-    return "untouched", path
+    return ProcessResult(
+        status="untouched",
+        final_path=path,
+        outcome_mask=0,
+        file_duration_seconds=source_duration,
+        hash_duration_seconds=hash_elapsed,
+    )
 
 def clean_exit():
     print(f"Completed", flush=True)
@@ -294,6 +368,7 @@ def main(argv: List[str]) -> int:
         clean_exit()
 
     base_url = os.environ.get("HASHARR_URL", str(DEFAULT_HASHARR_URL)).strip()
+    sab_nzo_id = os.environ.get("SAB_NZO_ID", "").strip()
     log(f"Using hasharr endpoint: {base_url}")
     log(f"Scanning directory: {job_dir}")
 
@@ -304,18 +379,33 @@ def main(argv: List[str]) -> int:
 
     outcome = Outcome()
     for video in videos:
+        file_size_bytes = int(video.stat().st_size) if video.exists() else 0
         try:
-            result, _ = process_file(video, base_url)
+            result = process_file(video, base_url)
         except Exception as exc:
             log(f"  error while processing {video.name}: {exc}")
             outcome.untouched += 1
             continue
 
-        if result == "deleted":
+        stats_name = result.final_path.name if result.final_path is not None else video.name
+        try:
+            post_record_stats(
+                base_url=base_url,
+                sab_nzo_id=sab_nzo_id,
+                file_name=stats_name,
+                file_size_bytes=file_size_bytes,
+                file_duration_seconds=result.file_duration_seconds,
+                hash_duration_seconds=result.hash_duration_seconds,
+                outcome_mask=result.outcome_mask,
+            )
+        except Exception as exc:
+            log(f"  warn: failed to record stats for {stats_name}: {exc}")
+
+        if result.status == "deleted":
             outcome.deleted += 1
-        elif result == "tagged_exact":
+        elif result.status == "tagged_exact":
             outcome.tagged_exact += 1
-        elif result == "tagged_potential":
+        elif result.status == "tagged_potential":
             outcome.tagged_potential += 1
         else:
             outcome.untouched += 1
