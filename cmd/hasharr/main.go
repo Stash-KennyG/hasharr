@@ -148,18 +148,31 @@ func handleSABPostProcessScript(w http.ResponseWriter, r *http.Request) {
 		"DEFAULT_MAX_TIME_DELTA = " + strconv.FormatFloat(maxTimeDelta, 'f', 3, 64) + "\n" +
 		"DEFAULT_MAX_DISTANCE = " + strconv.Itoa(maxDistance) + "\n\n"
 
-	out := src
-	if strings.HasPrefix(src, "#!") {
-		if i := strings.Index(src, "\n"); i >= 0 {
-			out = src[:i+1] + cfg + src[i+1:]
-		} else {
-			out = src + cfg
-		}
-	}
+	out := injectPythonDefaults(src, cfg)
 
 	w.Header().Set("Content-Type", "text/x-python; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="sab_postProcess.py"`)
 	_, _ = io.WriteString(w, out)
+}
+
+func injectPythonDefaults(src, cfg string) string {
+	// Keep `from __future__` imports as the first statement after docstring/comments.
+	futureLine := "from __future__ import "
+	if i := strings.Index(src, futureLine); i >= 0 {
+		if j := strings.Index(src[i:], "\n"); j >= 0 {
+			k := i + j + 1
+			return src[:k] + cfg + src[k:]
+		}
+		return src + "\n" + cfg
+	}
+
+	// Fallback: insert after shebang when present.
+	if strings.HasPrefix(src, "#!") {
+		if i := strings.Index(src, "\n"); i >= 0 {
+			return src[:i+1] + cfg + src[i+1:]
+		}
+	}
+	return cfg + src
 }
 
 func clampIntQuery(raw string, fallback, min, max int) int {
