@@ -747,14 +747,14 @@ var configPageHTML = `<!doctype html>
     </div>
 
     <section class="stats-ribbon">
-      <div class="stats-item" title="Total number of per-file hash stats records."><div class="sub">Count of Hashes</div><h2 id="statHashCount">0</h2></div>
-      <div class="stats-item" title="Sum of processed source file sizes in record-stats."><div class="sub">Sum of Data</div><h2 id="statDataSum">0 B</h2></div>
+      <div class="stats-item" title="Total number of per-file hash stats records."><div class="sub">Hashes</div><h2 id="statHashCount">0</h2></div>
+      <div class="stats-item" title="Sum of processed source file sizes in record-stats."><div class="sub">Data Hashed</div><h2 id="statDataSum">0 B</h2></div>
       <div class="stats-item" title="Count of files deleted by exact-match quality logic."><div class="sub">Deletes</div><h2 id="statDeleteCount">0</h2></div>
       <div class="stats-item" title="Count of files tagged with L (larger resolution)."><div class="sub">L Tags</div><h2 id="statLCount">0</h2></div>
       <div class="stats-item" title="Count of files tagged with F (higher fps)."><div class="sub">F Tags</div><h2 id="statFCount">0</h2></div>
       <div class="stats-item" title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></div>
-      <div class="stats-item" title="Sum of source video durations from record-stats."><div class="sub">Sum of Video</div><h2 id="statVideoSum">0s</h2></div>
-      <div class="stats-item" title="Sum of hash processing elapsed time from record-stats."><div class="sub">Sum of Hash Time</div><h2 id="statHashTimeSum">0s</h2></div>
+      <div class="stats-item" title="Sum of source video durations from record-stats."><div class="sub">Video Duration</div><h2 id="statVideoSum">0s</h2></div>
+      <div class="stats-item" title="Sum of hash processing elapsed time from record-stats."><div class="sub">Hash Time</div><h2 id="statHashTimeSum">0s</h2></div>
       <div class="stats-item" title="Earliest timestamp in the stats table."><div class="sub">Since</div><h2 id="statSince">-</h2></div>
     </section>
 
@@ -1111,6 +1111,29 @@ var configPageHTML = `<!doctype html>
       return String(major) + majorUnit.label + ' ' + nextRounded.toFixed(1).replace(/\.0$/, '') + nextUnit.label;
     }
 
+    function fmtDurationRaw(sec){
+      const s = Math.max(0, Number(sec || 0));
+      if (!Number.isFinite(s) || s <= 0) return '0s';
+      const units = [
+        { label: 'y', size: 31557600 },
+        { label: 'm', size: 2629800 },
+        { label: 'd', size: 86400 },
+        { label: 'h', size: 3600 },
+        { label: 'm', size: 60 },
+        { label: 's', size: 1 },
+      ];
+      let remain = Math.floor(s);
+      const parts = [];
+      for (const u of units) {
+        const n = Math.floor(remain / u.size);
+        if (n > 0) {
+          parts.push(String(n) + u.label);
+          remain -= n * u.size;
+        }
+      }
+      return parts.length ? parts.join(' ') : '0s';
+    }
+
     function fmtSince(s){
       const v = String(s || '').trim();
       if (!v) return '-';
@@ -1133,8 +1156,12 @@ var configPageHTML = `<!doctype html>
         el('statLCount').textContent = fmtCount(out.lCount || 0);
         el('statFCount').textContent = fmtCount(out.fCount || 0);
         el('statDCount').textContent = fmtCount(out.dCount || 0);
-        el('statVideoSum').textContent = fmtDurationLong(out.videoDurationSumSec || 0);
-        el('statHashTimeSum').textContent = fmtDurationLong(out.hashDurationSumSec || 0);
+        const videoSec = Number(out.videoDurationSumSec || 0);
+        const hashSec = Number(out.hashDurationSumSec || 0);
+        el('statVideoSum').textContent = fmtDurationLong(videoSec);
+        el('statHashTimeSum').textContent = fmtDurationLong(hashSec);
+        el('statVideoSum').title = fmtDurationRaw(videoSec);
+        el('statHashTimeSum').title = fmtDurationRaw(hashSec);
         el('statSince').textContent = fmtSince(out.since || '');
       } catch(_) {}
     }

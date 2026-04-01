@@ -6,9 +6,9 @@
     .brand img { width:64px; height:64px; border-radius:8px; }
     .brand h1 { margin:0; font-size:56px; line-height:1; }
     .stats-ribbon { display:flex; gap:8px; margin:6px 0 10px; overflow-x:auto; flex-wrap:nowrap; }
-    .stats-item { min-width:140px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; flex:1 0 140px; }
+    .stats-item { min-width:110px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; flex:0 0 auto; }
     .stats-item .sub { margin-bottom:4px; }
-    .stats-item h2 { margin:0; font-size:24px; line-height:1.1; color:#f1f5fb; }
+    .stats-item h2 { margin:0; font-size:24px; line-height:1.1; color:#f1f5fb; white-space:nowrap; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .drawer-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; padding:8px 10px; border-radius:8px; background:var(--panel2); }
     .drawer-title { font-weight:700; }
