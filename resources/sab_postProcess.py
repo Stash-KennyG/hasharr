@@ -197,7 +197,6 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
     source_y = safe_num(source_hash.get("resolution_y"))
     source_duration = safe_num(source_hash.get("duration"))
     source_fps = normalize_fps(source_hash.get("frame_rate"))
-    source_size = path.stat().st_size
 
     exact_rows: List[Tuple[str, Dict]] = []
     for lookup in exact.get("lookups", []) or []:
@@ -212,8 +211,6 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
         max_y = 0.0
         max_dur = 0.0
         max_fps = 0.0
-        max_size = 0
-
         for endpoint_url, row in exact_rows:
             try:
                 card = fetch_card(base_url, endpoint_url, str(row.get("id")))
@@ -223,7 +220,6 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             max_y = max(max_y, safe_num(card.get("resolutionY")))
             max_dur = max(max_dur, safe_num(card.get("duration")))
             max_fps = max(max_fps, normalize_fps(card.get("frameRate")))
-            max_size = max(max_size, int(safe_num(card.get("fileSize"))))
 
         reasons: List[str] = []
         if source_y > max_y:
@@ -233,8 +229,7 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
         if source_fps > max_fps:
             reasons.append("F")
 
-        is_largest_file = source_size >= max_size if max_size > 0 else False
-        has_advantage = bool(reasons) or is_largest_file
+        has_advantage = bool(reasons)
 
         if not has_advantage:
             path.unlink(missing_ok=True)
@@ -246,7 +241,7 @@ def process_file(path: Path, base_url: str) -> Tuple[str, Optional[Path]]:
             log(f"  exact matches found; better by {''.join(reasons)} -> tagged as {tagged.name}")
             return "tagged_exact", tagged
 
-        log("  exact matches found; kept (largest by file size)")
+        log("  exact matches found; kept (L/D/F advantage)")
         return "untouched", path
 
     optimistic_delta = min(15.0, source_duration * 0.02 if source_duration > 0 else 0.0)
