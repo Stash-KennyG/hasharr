@@ -762,6 +762,18 @@ var configPageHTML = `<!doctype html>
       </table>
     </section>
 
+    <section class="panel collapsed" id="aboutDrawer">
+      <div class="drawer-head" id="aboutDrawerToggle">
+        <div class="drawer-title">📖 About</div>
+        <div class="carrot">▾</div>
+      </div>
+      <div class="drawer-body" style="display:block;">
+        <div class="sub">what this tool does</div>
+        <div>hasharr computes perceptual hashes for source videos and compares them against configured Stash endpoints.</div>
+        <div style="margin-top:8px;">Use <strong>🐍 Configurator</strong> to tune matching/download behavior and <strong>🏗 Playground</strong> to browse files, run hashes, and inspect results.</div>
+      </div>
+    </section>
+
     <section class="panel" id="settingsDrawer">
       <div class="drawer-head" id="drawerToggle">
         <div>
@@ -892,6 +904,7 @@ var configPageHTML = `<!doctype html>
     let entries = [];
     let sortKey = 'name';
     let sortAsc = true;
+    let aboutDrawerInit = false;
     const el = (id) => document.getElementById(id);
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
     const showSpin = (on) => el('spinner').classList.toggle('show', !!on);
@@ -1210,6 +1223,11 @@ var configPageHTML = `<!doctype html>
         const res = await fetch('/v1/stats-summary');
         const out = await res.json().catch(() => ({}));
         if (!res.ok) return;
+        if (!aboutDrawerInit) {
+          aboutDrawerInit = true;
+          const hashCount = Number(out.hashCount || 0);
+          if (hashCount <= 0) el('aboutDrawer').classList.remove('collapsed');
+        }
         el('statHashCount').textContent = fmtCount(out.hashCount || 0);
         el('statDataSum').textContent = fmtBytesSI1(out.dataBytesSum || 0);
         el('statDeleteCount').textContent = fmtCount(out.deleteCount || 0);
@@ -1514,6 +1532,7 @@ var configPageHTML = `<!doctype html>
     }
 
     el('drawerToggle').onclick = () => el('settingsDrawer').classList.toggle('collapsed');
+    el('aboutDrawerToggle').onclick = () => el('aboutDrawer').classList.toggle('collapsed');
     el('configDrawerToggle').onclick = () => el('configDrawer').classList.toggle('collapsed');
     el('playgroundDrawerToggle').onclick = () => el('playgroundDrawer').classList.toggle('collapsed');
     el('saveBtn').onclick = saveEndpoint;
