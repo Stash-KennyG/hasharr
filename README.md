@@ -120,6 +120,7 @@ Body:
 
 Behavior:
 
+- empty or missing `filePath` is treated as a validation request (no hashing, no actions, no stats writes)
 - resolves profile config from SQLite (`hash_service_profiles`)
 - computes pHash and performs configured Stash lookup
 - applies action policy:
