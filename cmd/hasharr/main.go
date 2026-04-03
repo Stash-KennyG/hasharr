@@ -623,7 +623,18 @@ func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
 	}
 	req.FilePath = strings.TrimSpace(req.FilePath)
 	if req.FilePath == "" {
-		writeErr(w, http.StatusBadRequest, "filePath is required")
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":       "ok",
+			"mode":         "validation",
+			"profileId":    profile.ID,
+			"profileName":  profile.Name,
+			"enabled":      profile.Enabled,
+			"applyActions": profile.ApplyActions,
+			"stashIndex":   profile.StashIndex,
+			"maxTimeDelta": profile.MaxTimeDelta,
+			"maxDistance":  profile.MaxDistance,
+			"message":      "Validation request accepted. Provide filePath to execute hashing workflow.",
+		})
 		return
 	}
 	if profile.RemotePath != "" && profile.HasharrPath != "" && strings.HasPrefix(req.FilePath, profile.RemotePath) {
