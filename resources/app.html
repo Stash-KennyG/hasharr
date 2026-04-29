@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,6 +8,7 @@
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="stylesheet" href="/app.css" />
 </head>
+
 <body>
   <div class="container">
     <div class="brand">
@@ -14,7 +16,8 @@
       <h1>hasharr</h1>
       <div class="menu-wrap" style="margin-left:auto; position:relative;">
         <button type="button" id="menuBtn" style="margin-top:0; width:42px; height:42px; padding:0;">☰</button>
-        <div id="menuPanel" style="display:none; position:absolute; right:0; top:46px; min-width:220px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; overflow:hidden; z-index:999;">
+        <div id="menuPanel"
+          style="display:none; position:absolute; right:0; top:46px; min-width:220px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; overflow:hidden; z-index:999;">
           <a href="/" class="menu-link">Dashboard</a>
           <a href="/settings/stash" class="menu-link">Stash Settings</a>
           <a href="/settings/integrations" class="menu-link">Hash Service Profiles</a>
@@ -26,15 +29,42 @@
     <section class="stats-ribbon" id="statsSection">
       <table class="stats-table">
         <tr>
-          <td title="Total number of per-file hash stats records."><div class="sub">Hashes</div><h2 id="statHashCount">0</h2></td>
-          <td title="Sum of processed source file sizes in record-stats."><div class="sub">Data Hashed</div><h2 id="statDataSum">0 B</h2></td>
-          <td title="Count of files deleted by exact-match quality logic."><div class="sub">Deletes</div><h2 id="statDeleteCount">0</h2></td>
-          <td title="Count of files tagged with L (larger resolution)."><div class="sub">L Tags</div><h2 id="statLCount">0</h2></td>
-          <td title="Count of files tagged with F (higher fps)."><div class="sub">F Tags</div><h2 id="statFCount">0</h2></td>
-          <td title="Count of files tagged with D (longer duration)."><div class="sub">D Tags</div><h2 id="statDCount">0</h2></td>
-          <td title="Sum of source video durations from record-stats."><div class="sub">Video Duration</div><h2 id="statVideoSum">0s</h2></td>
-          <td title="Sum of hash processing elapsed time from record-stats."><div class="sub">Hash Time</div><h2 id="statHashTimeSum">0s</h2></td>
-          <td title="Earliest timestamp in the stats table."><div class="sub">Since</div><h2 id="statSince">-</h2></td>
+          <td title="Total number of per-file hash stats records.">
+            <div class="sub">Hashes</div>
+            <h2 id="statHashCount">0</h2>
+          </td>
+          <td title="Sum of processed source file sizes in record-stats.">
+            <div class="sub">Data Hashed</div>
+            <h2 id="statDataSum">0 B</h2>
+          </td>
+          <td title="Count of files deleted by exact-match quality logic.">
+            <div class="sub">Deletes</div>
+            <h2 id="statDeleteCount">0</h2>
+          </td>
+          <td title="Count of files tagged with L (larger resolution).">
+            <div class="sub">Resolution</div>
+            <h2 id="statLCount">0</h2>
+          </td>
+          <td title="Count of files tagged with F (higher fps).">
+            <div class="sub">Framerate</div>
+            <h2 id="statFCount">0</h2>
+          </td>
+          <td title="Count of files tagged with D (longer duration).">
+            <div class="sub">Duration</div>
+            <h2 id="statDCount">0</h2>
+          </td>
+          <td title="Sum of source video durations from record-stats.">
+            <div class="sub">Video Duration</div>
+            <h2 id="statVideoSum">0s</h2>
+          </td>
+          <td title="Sum of hash processing elapsed time from record-stats.">
+            <div class="sub">Hash Time</div>
+            <h2 id="statHashTimeSum">0s</h2>
+          </td>
+          <td title="Earliest timestamp in the stats table.">
+            <div class="sub">Since</div>
+            <h2 id="statSince">-</h2>
+          </td>
         </tr>
       </table>
     </section>
@@ -46,14 +76,21 @@
       </div>
       <div class="drawer-body single">
         <div class="sub">purpose and getting started</div>
-        <div>hasharr is designed to sit in front of manual curation work. It hashes completed downloads, checks for perceptual matches in Stash, and helps remove or tag likely duplicates before you spend time organizing content by hand.</div>
+        <div>hasharr is designed to sit in front of manual curation work. It hashes completed downloads, checks for
+          perceptual matches in Stash, and helps remove or tag likely duplicates before you spend time organizing
+          content by hand.</div>
         <div style="margin-top:8px;"><strong>Quick start</strong></div>
         <div>1) Open <strong>Stash Settings</strong> and add one or more Stash GraphQL endpoints.</div>
-        <div>2) On the <strong>Dashboard Playground</strong>, tune matching behavior ("Stash Endpoints", "maxTimeDelta", "maxDistance") and test files.</div>
-        <div>3) Open <strong>Hash Service Profiles</strong> to configure reusable service profiles and Python script download behavior.</div>
-        <div>4) In SABnzbd, use the downloaded sab_postProcess.py as a post-process script for your target jobs/categories.</div>
-        <div>5) Validate outcomes via the Dashboard stats ribbon and the Logs page before relying on full automation.</div>
-        <div style="margin-top:8px;">See the repository README for full Docker examples, API details, and SAB integration notes.</div>
+        <div>2) On the <strong>Dashboard Playground</strong>, tune matching behavior ("Stash Endpoints", "maxTimeDelta",
+          "maxDistance") and test files.</div>
+        <div>3) Open <strong>Hash Service Profiles</strong> to configure reusable service profiles and Python script
+          download behavior.</div>
+        <div>4) In SABnzbd, use the downloaded sab_postProcess.py as a post-process script for your target
+          jobs/categories.</div>
+        <div>5) Validate outcomes via the Dashboard stats ribbon and the Logs page before relying on full automation.
+        </div>
+        <div style="margin-top:8px;">See the repository README for full Docker examples, API details, and SAB
+          integration notes.</div>
       </div>
     </section>
 
@@ -106,10 +143,12 @@
         </div>
         <div class="drawer-body single">
           <div class="pathbar">
-            <div class="sub">phash-match configurator <span title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
+            <div class="sub">phash-match configurator <span
+                title="Defaults: stashIndex=-1 (All endpoints), maxTimeDelta=1s, maxDistance=0">ⓘ</span></div>
             <div class="pathrow">
               <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
-              <select id="stashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+              <select id="stashIndex"
+                style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
                 <option value="-1">All</option>
               </select>
               <label style="margin:0;min-width:95px;">maxTimeDelta</label>
@@ -117,7 +156,8 @@
               <label style="margin:0;min-width:88px;">maxDistance</label>
               <input id="maxDistance" type="range" min="0" max="8" step="1" value="0" style="width:130px;" />
               <span id="maxDistanceLabel" style="min-width:14px; text-align:right;">0</span>
-              <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download Script</button>
+              <button class="primary" id="downloadSabBtn" style="margin-top:0; margin-left:auto;">Download
+                Script</button>
             </div>
           </div>
         </div>
@@ -132,7 +172,8 @@
             <div class="sub">playground matching controls</div>
             <div class="pathrow">
               <label style="margin:0;min-width:122px;">Stash Endpoints:</label>
-              <select id="pgStashIndex" style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+              <select id="pgStashIndex"
+                style="width:280px; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
                 <option value="-1">All</option>
               </select>
               <label style="margin:0;min-width:95px;">maxTimeDelta</label>
@@ -157,7 +198,13 @@
           <div class="browser-results">
             <div class="card">
               <table>
-                <thead><tr><th id="nameSortHead" title="Sort by name">Name</th><th id="sizeSortHead" title="Sort by size">Size</th><th id="modifiedSortHead" title="Sort by modified date">Date Modified</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th id="nameSortHead" title="Sort by name">Name</th>
+                    <th id="sizeSortHead" title="Sort by size">Size</th>
+                    <th id="modifiedSortHead" title="Sort by modified date">Date Modified</th>
+                  </tr>
+                </thead>
                 <tbody id="fileRows"></tbody>
               </table>
             </div>
@@ -167,7 +214,9 @@
               <div id="cards" class="cards"></div>
               <div id="rawDrawer" class="collapsed">
                 <div class="raw-drawer-head" id="rawToggle"><span>Raw JSON</span><span class="raw-caret">▾</span></div>
-                <div class="raw-body"><pre id="resultJson">Results</pre></div>
+                <div class="raw-body">
+                  <pre id="resultJson">Results</pre>
+                </div>
               </div>
             </div>
           </div>
@@ -186,7 +235,9 @@
           </div>
           <div style="display:grid; gap:10px;">
             <div class="panel">
-              <div class="drawer-head"><div class="drawer-title">Update Service Profile</div></div>
+              <div class="drawer-head">
+                <div class="drawer-title">Update Service Profile</div>
+              </div>
               <div class="drawer-body single">
                 <label>Hasharr Service ID</label>
                 <input id="profileIDDisplay" type="text" value="(new)" readonly />
@@ -197,7 +248,8 @@
                   </div>
                   <div class="grow">
                     <label>Stash Endpoint</label>
-                    <select id="profileStashIndex" style="width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+                    <select id="profileStashIndex"
+                      style="width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
                       <option value="-1">All</option>
                     </select>
                   </div>
@@ -227,7 +279,9 @@
                   <div class="grow">
                     <label>Max Resolution Upgrade Threshold</label>
                     <input id="profileMaxResolution" type="range" min="0" max="7" step="1" value="7" />
-                    <div class="sub" id="profileMaxResolutionLabel" style="margin-top:6px; margin-bottom:0; text-transform:none; letter-spacing:normal;">8K (4320p)</div>
+                    <div class="sub" id="profileMaxResolutionLabel"
+                      style="margin-top:6px; margin-bottom:0; text-transform:none; letter-spacing:normal;">8K (4320p)
+                    </div>
                   </div>
                 </div>
                 <div class="row">
@@ -236,7 +290,9 @@
                     <input id="profileEnabled" type="checkbox" style="width:auto;" checked />
                   </div>
                   <div class="grow">
-                    <label title="When checked, hasharr is the actor and all service behavior is delegated to hasharr. When disabled, scripts and other consumers must handle behavior client-side.">Apply Actions ⓘ</label>
+                    <label
+                      title="When checked, hasharr is the actor and all service behavior is delegated to hasharr. When disabled, scripts and other consumers must handle behavior client-side.">Apply
+                      Actions ⓘ</label>
                     <input id="profileApplyActions" type="checkbox" style="width:auto;" checked />
                   </div>
                 </div>
@@ -250,30 +306,41 @@
             </div>
             <div class="panel collapsed" id="profilesAboutDrawer">
               <div class="drawer-head" id="profilesAboutToggle">
-                <div class="drawer-title">About</div><div class="carrot">▾</div>
+                <div class="drawer-title">About</div>
+                <div class="carrot">▾</div>
               </div>
               <div class="drawer-body single">
                 <div class="sub">context help</div>
-                <div>Any client that can send HTTP POST can target <span class="mono">/api/hash-service/{id}</span>.</div>
+                <div>Any client that can send HTTP POST can target <span class="mono">/api/hash-service/{id}</span>.
+                </div>
                 <div>Payload shape:</div>
                 <div class="mono">{ "filePath":"/path/to/file.mp4", "source":"optional", "jobId":"optional" }</div>
                 <div><strong>filePath:</strong> pre-translated path string supplied by the client runtime.</div>
-                <div><strong>source:</strong> optional client/source label (for example: metube, sabnzbd, webhook, manual) used for telemetry and traceability.</div>
-                <div><strong>jobId:</strong> optional client job identifier correlated to the originating queue/task id for logs and downstream debugging.</div>
-                <div>Pick a profile by ID on the consumer side, and keep matching policy centralized in hasharr. Hasharr will delete or tag files appropriately based on profile configuration.</div>
-                <div><strong>Path mapping behavior:</strong> if profile <span class="mono">remotePath</span> and <span class="mono">hasharrPath</span> are set, hasharr rewrites <span class="mono">filePath</span> by replacing the leading <span class="mono">remotePath</span> prefix with <span class="mono">hasharrPath</span> before processing. This is a prefix string replace used to bridge client-visible paths and hasharr/container-visible paths.</div>
+                <div><strong>source:</strong> optional client/source label (for example: metube, sabnzbd, webhook,
+                  manual) used for telemetry and traceability.</div>
+                <div><strong>jobId:</strong> optional client job identifier correlated to the originating queue/task id
+                  for logs and downstream debugging.</div>
+                <div>Pick a profile by ID on the consumer side, and keep matching policy centralized in hasharr. Hasharr
+                  will delete or tag files appropriately based on profile configuration.</div>
+                <div><strong>Path mapping behavior:</strong> if profile <span class="mono">remotePath</span> and <span
+                    class="mono">hasharrPath</span> are set, hasharr rewrites <span class="mono">filePath</span> by
+                  replacing the leading <span class="mono">remotePath</span> prefix with <span
+                    class="mono">hasharrPath</span> before processing. This is a prefix string replace used to bridge
+                  client-visible paths and hasharr/container-visible paths.</div>
               </div>
             </div>
             <div class="panel collapsed" id="profilesPythonDrawer">
               <div class="drawer-head" id="profilesPythonToggle">
-                <div class="drawer-title">Python Configurator</div><div class="carrot">▾</div>
+                <div class="drawer-title">Python Configurator</div>
+                <div class="carrot">▾</div>
               </div>
               <div class="drawer-body single">
                 <div class="sub">script download configuration</div>
                 <div class="row">
                   <div class="grow">
                     <label>Stash Endpoints</label>
-                    <select id="intStashIndex" style="width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
+                    <select id="intStashIndex"
+                      style="width:100%; padding:9px; border:1px solid var(--border); border-radius:8px; background:#12161d; color:var(--text);">
                       <option value="-1">All</option>
                     </select>
                   </div>
@@ -290,8 +357,10 @@
                 <label>hasharr URL</label>
                 <input id="metubeHasharrURL" value="http://hasharr:9995" />
                 <div class="usage">
-                  <div>- Recommended: map to your hasharr container URL (example <strong>http://hasharr:9995</strong>).</div>
-                  <div>- If different in your network, set a custom URL or click <strong>Detect</strong> to use browser origin.</div>
+                  <div>- Recommended: map to your hasharr container URL (example <strong>http://hasharr:9995</strong>).
+                  </div>
+                  <div>- If different in your network, set a custom URL or click <strong>Detect</strong> to use browser
+                    origin.</div>
                 </div>
                 <div class="row">
                   <button id="intDetectBtn" class="grow">Detect</button>
@@ -307,7 +376,8 @@
       <div class="modal-card">
         <h3 id="sabModalTitle">Download SAB Post-Process Script</h3>
         <div class="sub" style="text-transform:none; letter-spacing:normal;">
-          Please specify endpoint URL. If running it in a container it is suggested to use your container name and leave it as http://hasharr:9995.
+          Please specify endpoint URL. If running it in a container it is suggested to use your container name and leave
+          it as http://hasharr:9995.
         </div>
         <label for="sabModalEndpoint">Endpoint URL</label>
         <input id="sabModalEndpoint" type="text" placeholder="https://hasharr:9995" />
@@ -337,10 +407,10 @@
     const profileResolutionLabels = ["480p", "720p", "1080p", "1440p", "4K", "5K", "6K", "8K"];
     const el = (id) => document.getElementById(id);
     const pageBootstrap = "__PAGE_BOOTSTRAP__";
-    const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
-    const profileStatus = (msg, cls='') => { el('profileStatus').className = 'status ' + cls; el('profileStatus').textContent = msg; };
+    const status = (msg, cls = '') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
+    const profileStatus = (msg, cls = '') => { el('profileStatus').className = 'status ' + cls; el('profileStatus').textContent = msg; };
     const showSpin = (on) => el('spinner').classList.toggle('show', !!on);
-    const prettyVersion = (v) => { const s=String(v||'').trim(); return !s ? '' : (s[0]==='v'||s[0]==='V'?s:('v'+s)); };
+    const prettyVersion = (v) => { const s = String(v || '').trim(); return !s ? '' : (s[0] === 'v' || s[0] === 'V' ? s : ('v' + s)); };
     const fmtCount = (n) => {
       const v = Number(n || 0);
       if (!Number.isFinite(v)) return '0';
@@ -360,20 +430,20 @@
       return Math.round(v).toLocaleString();
     };
     const versionTitle = (ep) => 'Version: ' + prettyVersion(ep.version);
-    const countTitle = (ep) => Number(ep.phashPercent||0).toFixed(2) + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
+    const countTitle = (ep) => Number(ep.phashPercent || 0).toFixed(2) + '% phashes.  ' + fmtCount(ep.sceneCount) + ' of ' + fmtCount(ep.totalSceneCount) + ' scenes';
 
-    function clearForm(){ el('name').value=''; el('graphqlUrl').value=''; el('publicUrl').value=''; el('apiKey').value=''; selectedId=null; el('formTitle').textContent='Add Endpoint'; renderList(); }
-    function fillForm(ep){ el('name').value=ep.name; el('graphqlUrl').value=ep.graphqlUrl; el('publicUrl').value=ep.publicUrl||''; el('apiKey').value=ep.apiKey||''; selectedId=ep.id; el('formTitle').textContent='Edit Endpoint'; renderList(); }
+    function clearForm() { el('name').value = ''; el('graphqlUrl').value = ''; el('publicUrl').value = ''; el('apiKey').value = ''; selectedId = null; el('formTitle').textContent = 'Add Endpoint'; renderList(); }
+    function fillForm(ep) { el('name').value = ep.name; el('graphqlUrl').value = ep.graphqlUrl; el('publicUrl').value = ep.publicUrl || ''; el('apiKey').value = ep.apiKey || ''; selectedId = ep.id; el('formTitle').textContent = 'Edit Endpoint'; renderList(); }
 
-    async function loadEndpoints(){
+    async function loadEndpoints() {
       status('Refreshing endpoint metrics...');
       const res = await fetch('/v1/stash-endpoints?refresh=1');
       const out = await res.json();
-      if (!res.ok){ status(out.error || 'Refresh failed','err'); return; }
+      if (!res.ok) { status(out.error || 'Refresh failed', 'err'); return; }
       endpoints = out;
       renderList();
       renderStashIndexOptions();
-      status('Metrics refreshed','ok');
+      status('Metrics refreshed', 'ok');
 
       const drawer = el('settingsDrawer');
       if (pageBootstrap === 'stash') {
@@ -385,7 +455,7 @@
       }
     }
 
-    function fillStashSelect(sel){
+    function fillStashSelect(sel) {
       if (!sel) return;
       const prev = sel.value;
       sel.innerHTML = '';
@@ -402,7 +472,7 @@
       sel.value = [...sel.options].some(o => o.value === prev) ? prev : '-1';
     }
 
-    function renderStashIndexOptions(){
+    function renderStashIndexOptions() {
       fillStashSelect(el('stashIndex'));
       fillStashSelect(el('pgStashIndex'));
       fillStashSelect(el('intStashIndex'));
@@ -410,63 +480,63 @@
       updateCurl();
     }
 
-    function renderList(){
-      const list = el('list'); list.innerHTML='';
-      for (const ep of endpoints){
-        const li=document.createElement('li');
-        const row=document.createElement('div'); row.className='item';
-        const name=document.createElement('span'); name.className='item-name'; name.textContent=ep.name; name.title=versionTitle(ep);
+    function renderList() {
+      const list = el('list'); list.innerHTML = '';
+      for (const ep of endpoints) {
+        const li = document.createElement('li');
+        const row = document.createElement('div'); row.className = 'item';
+        const name = document.createElement('span'); name.className = 'item-name'; name.textContent = ep.name; name.title = versionTitle(ep);
         name.onmouseenter = async () => {
           if (versionLoaded.has(ep.id)) return;
           try {
             const res = await fetch('/v1/stash-endpoints/' + ep.id + '/version');
             const out = await res.json();
-            if (res.ok && out.version){ versionLoaded.add(ep.id); ep.version = out.version; name.title = versionTitle(ep); }
-          } catch(_) {}
+            if (res.ok && out.version) { versionLoaded.add(ep.id); ep.version = out.version; name.title = versionTitle(ep); }
+          } catch (_) { }
         };
-        const count=document.createElement('span'); count.className='item-count'; count.textContent=fmtCount(ep.sceneCount); count.title=countTitle(ep);
+        const count = document.createElement('span'); count.className = 'item-count'; count.textContent = fmtCount(ep.sceneCount); count.title = countTitle(ep);
         row.appendChild(name); row.appendChild(count); li.appendChild(row);
-        if (ep.id===selectedId) li.classList.add('active');
-        li.onclick=()=>fillForm(ep);
+        if (ep.id === selectedId) li.classList.add('active');
+        li.onclick = () => fillForm(ep);
         list.appendChild(li);
       }
     }
 
-    async function saveEndpoint(){
+    async function saveEndpoint() {
       status('Validating endpoint...');
-      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), publicUrl:el('publicUrl').value.trim(), apiKey:el('apiKey').value.trim() };
-      if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
+      const body = { name: el('name').value.trim(), graphqlUrl: el('graphqlUrl').value.trim(), publicUrl: el('publicUrl').value.trim(), apiKey: el('apiKey').value.trim() };
+      if (!body.name || !body.graphqlUrl) { status('Name and GraphQL Url are required', 'err'); return; }
       const url = selectedId ? '/v1/stash-endpoints/' + selectedId : '/v1/stash-endpoints';
       const method = selectedId ? 'PUT' : 'POST';
-      const res = await fetch(url,{ method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const out = await res.json();
-      if (!res.ok){ status(out.error || 'Save failed','err'); return; }
+      if (!res.ok) { status(out.error || 'Save failed', 'err'); return; }
       status('Saved and validated: ' + out.name + ' ' + prettyVersion(out.version), 'ok');
       await loadEndpoints();
       fillForm(out);
     }
 
-    async function testEndpoint(){
+    async function testEndpoint() {
       status('Testing endpoint...');
-      const body={ name:el('name').value.trim(), graphqlUrl:el('graphqlUrl').value.trim(), publicUrl:el('publicUrl').value.trim(), apiKey:el('apiKey').value.trim() };
-      if (!body.name || !body.graphqlUrl){ status('Name and GraphQL Url are required','err'); return; }
-      const res = await fetch('/v1/stash-endpoints-test',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const body = { name: el('name').value.trim(), graphqlUrl: el('graphqlUrl').value.trim(), publicUrl: el('publicUrl').value.trim(), apiKey: el('apiKey').value.trim() };
+      if (!body.name || !body.graphqlUrl) { status('Name and GraphQL Url are required', 'err'); return; }
+      const res = await fetch('/v1/stash-endpoints-test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const out = await res.json();
-      if (!res.ok){ status(out.error || 'Test failed','err'); return; }
+      if (!res.ok) { status(out.error || 'Test failed', 'err'); return; }
       status('Connection OK: ' + body.name + ' ' + prettyVersion(out.version), 'ok');
     }
 
-    async function deleteEndpoint(){
-      if (!selectedId){ status('Select an endpoint first','err'); return; }
-      const res = await fetch('/v1/stash-endpoints/' + selectedId,{ method:'DELETE' });
+    async function deleteEndpoint() {
+      if (!selectedId) { status('Select an endpoint first', 'err'); return; }
+      const res = await fetch('/v1/stash-endpoints/' + selectedId, { method: 'DELETE' });
       const out = await res.json();
-      if (!res.ok){ status(out.error || 'Delete failed','err'); return; }
-      status('Deleted','ok');
+      if (!res.ok) { status(out.error || 'Delete failed', 'err'); return; }
+      status('Deleted', 'ok');
       await loadEndpoints();
       clearForm();
     }
 
-    function getActiveConfig(){
+    function getActiveConfig() {
       if (pageBootstrap === 'dashboard') {
         return {
           stashIndex: Number(el('pgStashIndex').value || -1),
@@ -488,7 +558,7 @@
       };
     }
 
-    function updateCurl(){
+    function updateCurl() {
       if (!(selectedEntry && !selectedEntry.isDir)) {
         el('curlCmd').textContent = 'Select a file to generate curl command.';
         return;
@@ -503,7 +573,7 @@
       el('curlCmd').textContent = cmd;
     }
 
-    function renderProfiles(){
+    function renderProfiles() {
       const host = el('profileList');
       if (!host) return;
       host.innerHTML = '';
@@ -516,12 +586,12 @@
       }
     }
 
-    function profileResolutionLabel(index){
+    function profileResolutionLabel(index) {
       const idx = clampInt(index, profileResolutionSteps.length - 1, 0, profileResolutionSteps.length - 1);
       return profileResolutionLabels[idx] + ' (' + profileResolutionSteps[idx] + 'p)';
     }
 
-    function profileResolutionIndexFromY(y){
+    function profileResolutionIndexFromY(y) {
       const value = Number(y);
       if (!Number.isFinite(value) || value <= 0) return profileResolutionSteps.length - 1;
       let nearestIdx = 0;
@@ -536,7 +606,7 @@
       return nearestIdx;
     }
 
-    function updateProfileResolutionUI(){
+    function updateProfileResolutionUI() {
       const slider = el('profileMaxResolution');
       const idx = clampInt(slider.value, profileResolutionSteps.length - 1, 0, profileResolutionSteps.length - 1);
       slider.value = String(idx);
@@ -545,7 +615,7 @@
       slider.style.setProperty('--pct', pct.toFixed(2) + '%');
     }
 
-    function clearProfileForm(){
+    function clearProfileForm() {
       selectedProfileId = 0;
       el('profileIDDisplay').value = '(new)';
       el('profileName').value = '';
@@ -562,7 +632,7 @@
       renderProfiles();
     }
 
-    function fillProfileForm(p){
+    function fillProfileForm(p) {
       selectedProfileId = Number(p.id || 0);
       el('profileIDDisplay').value = String(selectedProfileId || '(new)');
       el('profileName').value = String(p.name || '');
@@ -580,7 +650,7 @@
       renderProfiles();
     }
 
-    async function loadProfiles(){
+    async function loadProfiles() {
       const res = await fetch('/v1/hash-service-profiles');
       const out = await res.json().catch(() => ([]));
       if (!res.ok) {
@@ -592,7 +662,7 @@
       if (!selectedProfileId && profileRows.length) fillProfileForm(profileRows[0]);
     }
 
-    async function saveProfile(){
+    async function saveProfile() {
       const body = {
         name: String(el('profileName').value || '').trim(),
         remotePath: String(el('profileRemotePath').value || '').trim(),
@@ -622,7 +692,7 @@
       if (out && out.id) fillProfileForm(out);
     }
 
-    async function deleteProfile(){
+    async function deleteProfile() {
       if (!(Number(selectedProfileId || 0) > 0)) {
         profileStatus('select a profile first', 'err');
         return;
@@ -638,7 +708,7 @@
       clearProfileForm();
     }
 
-    function sabScriptURL(endpointURL){
+    function sabScriptURL(endpointURL) {
       const cfg = getActiveConfig();
       const hasharrUrl = String(endpointURL || '').trim();
       const q = new URLSearchParams();
@@ -649,7 +719,7 @@
       return '/v1/sab-postprocess.py?' + q.toString();
     }
 
-    function hashServiceClientScriptURL(endpointURL){
+    function hashServiceClientScriptURL(endpointURL) {
       const hasharrUrl = String(endpointURL || '').trim();
       const q = new URLSearchParams();
       q.set('serviceID', String(Number(selectedProfileId || 1)));
@@ -657,7 +727,7 @@
       return '/v1/hash-service-client.py?' + q.toString();
     }
 
-    function openSABModal(){
+    function openSABModal() {
       const modal = el('sabModal');
       const input = el('sabModalEndpoint');
       input.value = 'https://hasharr:9995';
@@ -665,11 +735,11 @@
       setTimeout(() => input.focus(), 0);
     }
 
-    function closeSABModal(){
+    function closeSABModal() {
       el('sabModal').classList.add('hidden');
     }
 
-    function clampInt(v, fallback, min, max){
+    function clampInt(v, fallback, min, max) {
       const n = Number.parseInt(String(v ?? ''), 10);
       if (!Number.isFinite(n)) return fallback;
       if (n < min) return min;
@@ -677,10 +747,10 @@
       return n;
     }
 
-    async function fetchSceneCard(endpointUrl, sceneId){
+    async function fetchSceneCard(endpointUrl, sceneId) {
       const res = await fetch('/v1/scene-card', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpointUrl, sceneId })
       });
       const out = await res.json().catch(() => ({}));
@@ -688,31 +758,31 @@
       return out;
     }
 
-    function sceneURL(publicUrl, sceneId){
+    function sceneURL(publicUrl, sceneId) {
       const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
       if (!base || !sceneId) return '';
       return base + '/scenes/' + encodeURIComponent(sceneId);
     }
 
-    function sceneImageURL(publicUrl, sceneId){
+    function sceneImageURL(publicUrl, sceneId) {
       const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
       if (!base || !sceneId) return '';
       return base + '/scene/' + encodeURIComponent(sceneId) + '/screenshot';
     }
 
-    function scenePreviewURL(publicUrl, sceneId){
+    function scenePreviewURL(publicUrl, sceneId) {
       const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
       if (!base || !sceneId) return '';
       return base + '/scene/' + encodeURIComponent(sceneId) + '/preview';
     }
 
-    function studioImageURL(publicUrl, studioId){
+    function studioImageURL(publicUrl, studioId) {
       const base = String(publicUrl || '').replace(/\/+$/, '').replace(/\/graphql$/, '');
       if (!base || !studioId) return '';
       return base + '/studio/' + encodeURIComponent(studioId) + '/image';
     }
 
-    function fmtDuration(sec){
+    function fmtDuration(sec) {
       const s = Math.max(0, Number(sec || 0));
       const h = Math.floor(s / 3600);
       const m = Math.floor((s % 3600) / 60);
@@ -721,25 +791,25 @@
       return String(m) + ':' + String(r).padStart(2, '0');
     }
 
-    function fmtBytes(n){
+    function fmtBytes(n) {
       const b = Number(n || 0);
       if (!Number.isFinite(b) || b <= 0) return '';
-      const units = ['B','KiB','MiB','GiB','TiB'];
+      const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
       let v = b, i = 0;
       while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
       return (i === 0 ? String(Math.round(v)) : v.toFixed(2).replace(/\.00$/, '')) + ' ' + units[i];
     }
 
-    function fmtBytesSI1(n){
+    function fmtBytesSI1(n) {
       const b = Number(n || 0);
       if (!Number.isFinite(b) || b <= 0) return '0 B';
-      const units = ['B','KB','MB','GB','TB','PB'];
+      const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
       let v = b, i = 0;
       while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
       return (i === 0 ? String(Math.round(v)) : v.toFixed(1)) + units[i];
     }
 
-    function fmtDate(s){
+    function fmtDate(s) {
       const v = String(s || '').trim();
       if (!v) return '';
       const d = new Date(v);
@@ -747,7 +817,7 @@
       return d.toLocaleString();
     }
 
-    function fmtISODate(s){
+    function fmtISODate(s) {
       const v = String(s || '').trim();
       if (!v) return '';
       const d = new Date(v);
@@ -755,7 +825,7 @@
       return d.toISOString();
     }
 
-    function fmtSceneDate(s){
+    function fmtSceneDate(s) {
       const v = String(s || '').trim();
       if (!v) return '';
       const d = new Date(v);
@@ -763,7 +833,7 @@
       return d.toLocaleDateString();
     }
 
-    function fmtDurationLong(sec){
+    function fmtDurationLong(sec) {
       const s = Math.max(0, Number(sec || 0));
       if (!Number.isFinite(s) || s <= 0) return '0s';
       const units = [
@@ -789,7 +859,7 @@
       return String(major) + majorUnit.label + ' ' + nextRounded.toFixed(1).replace(/\.0$/, '') + nextUnit.label;
     }
 
-    function fmtDurationRaw(sec){
+    function fmtDurationRaw(sec) {
       const s = Math.max(0, Number(sec || 0));
       if (!Number.isFinite(s) || s <= 0) return '0s';
       const units = [
@@ -812,7 +882,7 @@
       return parts.length ? parts.join(' ') : '0s';
     }
 
-    function fmtSince(s){
+    function fmtSince(s) {
       const v = String(s || '').trim();
       if (!v) return '-';
       const d = new Date(v);
@@ -823,7 +893,7 @@
       return y + '-' + m + '-' + day;
     }
 
-    async function loadStatsSummary(){
+    async function loadStatsSummary() {
       try {
         const res = await fetch('/v1/stats-summary');
         const out = await res.json().catch(() => ({}));
@@ -846,10 +916,10 @@
         el('statVideoSum').title = fmtDurationRaw(videoSec);
         el('statHashTimeSum').title = fmtDurationRaw(hashSec);
         el('statSince').textContent = fmtSince(out.since || '');
-      } catch(_) {}
+      } catch (_) { }
     }
 
-    async function recordUIHashStats(targetPath, result, elapsedSec){
+    async function recordUIHashStats(targetPath, result, elapsedSec) {
       const hash = (result && result.hash) ? result.hash : {};
       const payload = {
         sabNzoID: 'ui',
@@ -861,20 +931,20 @@
       };
       try {
         await fetch('/v1/record-stats', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-      } catch(_) {}
+      } catch (_) { }
     }
 
-    function normalizedFPS(v){
+    function normalizedFPS(v) {
       const n = Number(v || 0);
       if (!Number.isFinite(n) || n <= 0) return 0;
       return Math.min(n, 30);
     }
 
-    function drawerSummarySuffix(sourceHash, card){
+    function drawerSummarySuffix(sourceHash, card) {
       if (!sourceHash || !card) return '';
       const out = [];
       const sourceY = Number(sourceHash.resolution_y || 0);
@@ -892,14 +962,14 @@
       return out.length ? (' ' + out.join(' | ')) : '';
     }
 
-    function basename(p){
+    function basename(p) {
       const s = String(p || '');
       if (!s) return '';
       const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
       return i >= 0 ? s.slice(i + 1) : s;
     }
 
-    function renderFileDetails(file){
+    function renderFileDetails(file) {
       return ''
         + '<div class="kv"><span class="k">Hash:</span><span class="v">' + (file.hash || '') + '</span></div>'
         + '<div class="kv"><span class="k">Duration:</span><span class="v">' + (file.duration ? fmtDuration(file.duration) : '') + '</span></div>'
@@ -913,7 +983,7 @@
         + '<div class="kv"><span class="k">Audio Codec:</span><span class="v">' + (file.audioCodec || '') + '</span></div>';
     }
 
-    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match, sourceHash){
+    function renderSceneCard(card, endpointName, endpointUrl, publicUrl, match, sourceHash) {
       const iconSVG = {
         tag: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M0 80L0 229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7L48 32C21.5 32 0 53.5 0 80zm112 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"></path></svg>',
         user: '<svg viewBox="0 0 448 512" aria-hidden="true"><path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z"></path></svg>',
@@ -1002,12 +1072,12 @@
         + '</div>';
     }
 
-    function wireScenePreviews(){
+    function wireScenePreviews() {
       document.querySelectorAll('.scene-card .scene-media').forEach((media) => {
         const v = media.querySelector('.scene-preview');
         const bar = media.querySelector('.scene-progress > div');
         if (!v || !bar) return;
-        media.onmouseenter = async () => { try { await v.play(); } catch(_) {} };
+        media.onmouseenter = async () => { try { await v.play(); } catch (_) { } };
         media.onmouseleave = () => { v.pause(); };
         v.ontimeupdate = () => {
           const pct = (v.duration && v.duration > 0) ? Math.min(100, Math.max(0, (v.currentTime / v.duration) * 100)) : 0;
@@ -1016,15 +1086,15 @@
       });
     }
 
-    async function renderMatchCards(result){
+    async function renderMatchCards(result) {
       const host = el('cards');
       host.innerHTML = '';
       const lookups = result.lookups || [];
       const tasks = [];
-      for (const l of lookups){
+      for (const l of lookups) {
         const m = l.matches || {};
         const rows = [...(m.exactMatches || []), ...(m.partialMatches || [])];
-        for (const row of rows){
+        for (const row of rows) {
           if (!row || !row.id) continue;
           tasks.push({
             endpointName: l.endpointName || '',
@@ -1050,19 +1120,19 @@
       wireScenePreviews();
     }
 
-    async function loadDir(path){
+    async function loadDir(path) {
       const q = path ? ('?path=' + encodeURIComponent(path)) : '';
       const res = await fetch('/v1/fs/list' + q);
       const out = await res.json();
-      if (!res.ok){ el('resultJson').textContent = JSON.stringify(out, null, 2); return; }
+      if (!res.ok) { el('resultJson').textContent = JSON.stringify(out, null, 2); return; }
       currentPath = out.path; entries = out.entries || []; selectedEntry = null;
       el('pathInput').value = currentPath;
       renderEntries();
       updateCurl();
     }
 
-    function renderEntries(){
-      const tbody = el('fileRows'); tbody.innerHTML='';
+    function renderEntries() {
+      const tbody = el('fileRows'); tbody.innerHTML = '';
       const sorted = [...entries].sort((a, b) => {
         if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
         let cmp = 0;
@@ -1076,7 +1146,7 @@
         if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
         return sortAsc ? cmp : -cmp;
       });
-      for (const ent of sorted){
+      for (const ent of sorted) {
         const tr = document.createElement('tr');
         if (selectedEntry && selectedEntry.path === ent.path) tr.classList.add('selected');
         tr.innerHTML = '<td>' + (ent.isDir ? '📁 ' : '📄 ') + ent.name + '</td><td>' + (ent.isDir ? '' : fmtCount(ent.size)) + '</td><td>' + ent.modified + '</td>';
@@ -1086,7 +1156,7 @@
       }
     }
 
-    function updateSortHeadLabels(){
+    function updateSortHeadLabels() {
       const n = el('nameSortHead');
       const s = el('sizeSortHead');
       const m = el('modifiedSortHead');
@@ -1095,16 +1165,16 @@
       m.textContent = 'Date Modified' + (sortKey === 'modified' ? (sortAsc ? ' ▲' : ' ▼') : '');
     }
 
-    function setSort(key){
+    function setSort(key) {
       if (sortKey === key) sortAsc = !sortAsc;
       else { sortKey = key; sortAsc = true; }
       updateSortHeadLabels();
       renderEntries();
     }
 
-    async function runHash(){
+    async function runHash() {
       const target = selectedEntry && !selectedEntry.isDir ? selectedEntry.path : el('pathInput').value.trim();
-      if (!target){ el('resultJson').textContent = 'No file selected.'; return; }
+      if (!target) { el('resultJson').textContent = 'No file selected.'; return; }
       showSpin(true);
       el('resultJson').textContent = 'Working...';
       const startedAt = performance.now();
@@ -1113,8 +1183,8 @@
       if (cfg.stashIndex !== -1) payload.stashIndex = cfg.stashIndex;
       if (cfg.maxTimeDelta !== 1) payload.maxTimeDelta = cfg.maxTimeDelta;
       if (cfg.maxDistance !== 0) payload.maxDistance = cfg.maxDistance;
-      const res = await fetch('/v1/phash-match', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      const out = await res.json().catch(()=>({error:'Invalid response'}));
+      const res = await fetch('/v1/phash-match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const out = await res.json().catch(() => ({ error: 'Invalid response' }));
       showSpin(false);
       el('resultJson').textContent = JSON.stringify(out, null, 2);
       if (res.ok) {
@@ -1127,7 +1197,7 @@
       }
     }
 
-    async function upFolder(){
+    async function upFolder() {
       const base = selectedEntry ? (selectedEntry.isDir ? selectedEntry.path : currentPath) : currentPath;
       let parent = '/';
       if (base && base !== '/') parent = base.substring(0, base.lastIndexOf('/')) || '/';
@@ -1235,6 +1305,8 @@
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
     updateProfileResolutionUI();
-    Promise.all([loadEndpoints(), loadProfiles(), loadDir(''), loadStatsSummary()]).catch(err => { status(String(err),'err'); });
+    Promise.all([loadEndpoints(), loadProfiles(), loadDir(''), loadStatsSummary()]).catch(err => { status(String(err), 'err'); });
   </script>
-</body></html>
+</body>
+
+</html>

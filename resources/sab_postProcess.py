@@ -36,6 +36,7 @@ from urllib import error, request
 DEFAULT_STASH_INDEX = globals().get("DEFAULT_STASH_INDEX", -1)
 DEFAULT_MAX_TIME_DELTA = globals().get("DEFAULT_MAX_TIME_DELTA", 1.0)
 DEFAULT_MAX_DISTANCE = globals().get("DEFAULT_MAX_DISTANCE", 0)
+DEFAULT_MAX_RESOLUTION = globals().get("DEFAULT_MAX_RESOLUTION", 4320)
 DEFAULT_HASHARR_URL = globals().get("DEFAULT_HASHARR_URL", "http://hasharr:9995")
 
 BIT_DELETED = 8
@@ -158,6 +159,14 @@ def safe_num(v: object) -> float:
         return 0.0
 
 
+def effective_resolution(v: object) -> float:
+    value = safe_num(v)
+    max_resolution = safe_num(DEFAULT_MAX_RESOLUTION)
+    if max_resolution <= 0:
+        max_resolution = 4320.0
+    return min(value, max_resolution)
+
+
 def prefix_name(path: Path, prefix: str) -> Path:
     if path.name.startswith(prefix):
         return path
@@ -232,7 +241,7 @@ def process_file(path: Path, base_url: str) -> ProcessResult:
     exact = api_post_json(base_url, "/v1/phash-match", exact_payload)
     hash_elapsed = time.monotonic() - started
     source_hash = exact.get("hash", {}) or {}
-    source_y = safe_num(source_hash.get("resolution_y"))
+    source_y = effective_resolution(source_hash.get("resolution_y"))
     source_duration = safe_num(source_hash.get("duration"))
     source_fps = normalize_fps(source_hash.get("frame_rate"))
 
@@ -256,7 +265,7 @@ def process_file(path: Path, base_url: str) -> ProcessResult:
             except Exception as exc:
                 log(f"  warn: failed scene-card lookup for {row.get('id')}: {exc}")
                 continue
-            y = safe_num(card.get("resolutionY"))
+            y = effective_resolution(card.get("resolutionY"))
             d = safe_num(card.get("duration"))
             f = normalize_fps(card.get("frameRate"))
             matched_metrics.append((y, d, f))
