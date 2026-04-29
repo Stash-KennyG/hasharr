@@ -225,6 +225,13 @@
                 </div>
                 <div class="row">
                   <div class="grow">
+                    <label>Max Resolution Upgrade Threshold</label>
+                    <input id="profileMaxResolution" type="range" min="0" max="7" step="1" value="7" />
+                    <div class="sub" id="profileMaxResolutionLabel" style="margin-top:6px; margin-bottom:0; text-transform:none; letter-spacing:normal;">8K (4320p)</div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="grow">
                     <label>Enabled</label>
                     <input id="profileEnabled" type="checkbox" style="width:auto;" checked />
                   </div>
@@ -326,6 +333,8 @@
     let aboutDrawerInit = false;
     let selectedProfileId = 0;
     let profileRows = [];
+    const profileResolutionSteps = [480, 720, 1080, 1440, 2160, 2880, 3384, 4320];
+    const profileResolutionLabels = ["480p", "720p", "1080p", "1440p", "4K", "5K", "6K", "8K"];
     const el = (id) => document.getElementById(id);
     const pageBootstrap = "__PAGE_BOOTSTRAP__";
     const status = (msg, cls='') => { el('status').className = 'status ' + cls; el('status').textContent = msg; };
@@ -507,6 +516,35 @@
       }
     }
 
+    function profileResolutionLabel(index){
+      const idx = clampInt(index, profileResolutionSteps.length - 1, 0, profileResolutionSteps.length - 1);
+      return profileResolutionLabels[idx] + ' (' + profileResolutionSteps[idx] + 'p)';
+    }
+
+    function profileResolutionIndexFromY(y){
+      const value = Number(y);
+      if (!Number.isFinite(value) || value <= 0) return profileResolutionSteps.length - 1;
+      let nearestIdx = 0;
+      let nearestDelta = Math.abs(profileResolutionSteps[0] - value);
+      for (let i = 1; i < profileResolutionSteps.length; i++) {
+        const delta = Math.abs(profileResolutionSteps[i] - value);
+        if (delta < nearestDelta) {
+          nearestDelta = delta;
+          nearestIdx = i;
+        }
+      }
+      return nearestIdx;
+    }
+
+    function updateProfileResolutionUI(){
+      const slider = el('profileMaxResolution');
+      const idx = clampInt(slider.value, profileResolutionSteps.length - 1, 0, profileResolutionSteps.length - 1);
+      slider.value = String(idx);
+      el('profileMaxResolutionLabel').textContent = profileResolutionLabel(idx);
+      const pct = (idx / (profileResolutionSteps.length - 1)) * 100;
+      slider.style.setProperty('--pct', pct.toFixed(2) + '%');
+    }
+
     function clearProfileForm(){
       selectedProfileId = 0;
       el('profileIDDisplay').value = '(new)';
@@ -519,6 +557,8 @@
       el('profileMaxTimeDelta').value = '1';
       el('profileMaxDistance').value = '0';
       el('profileMaxDistanceLabel').textContent = '0';
+      el('profileMaxResolution').value = String(profileResolutionSteps.length - 1);
+      updateProfileResolutionUI();
       renderProfiles();
     }
 
@@ -534,6 +574,9 @@
       el('profileMaxTimeDelta').value = String(clampInt(p.maxTimeDelta, 1, 0, 15));
       el('profileMaxDistance').value = String(clampInt(p.maxDistance, 0, 0, 8));
       el('profileMaxDistanceLabel').textContent = el('profileMaxDistance').value;
+      const resolutionIndex = profileResolutionIndexFromY(p.maxResolutionY ?? 4320);
+      el('profileMaxResolution').value = String(resolutionIndex);
+      updateProfileResolutionUI();
       renderProfiles();
     }
 
@@ -558,6 +601,7 @@
         stashIndex: Number(el('profileStashIndex').value || -1),
         maxTimeDelta: clampInt(el('profileMaxTimeDelta').value, 1, 0, 15),
         maxDistance: clampInt(el('profileMaxDistance').value, 0, 0, 8),
+        maxResolutionY: profileResolutionSteps[clampInt(el('profileMaxResolution').value, profileResolutionSteps.length - 1, 0, profileResolutionSteps.length - 1)],
         applyActions: !!el('profileApplyActions').checked,
       };
       if (!body.name) {
@@ -1117,6 +1161,7 @@
     el('intMaxTimeDelta').onchange = () => { el('intMaxTimeDelta').value = String(clampInt(el('intMaxTimeDelta').value, 1, 0, 15)); updateCurl(); };
     el('intMaxDistance').oninput = () => { el('intMaxDistanceLabel').textContent = el('intMaxDistance').value; updateCurl(); };
     el('profileMaxDistance').oninput = () => { el('profileMaxDistanceLabel').textContent = el('profileMaxDistance').value; };
+    el('profileMaxResolution').oninput = updateProfileResolutionUI;
     el('intDetectBtn').onclick = () => { el('metubeHasharrURL').value = window.location.origin || 'http://hasharr:9995'; };
     el('downloadSabBtn').onclick = openSABModal;
     el('intDownloadSabBtn').onclick = () => {
@@ -1189,6 +1234,7 @@
     updateSortHeadLabels();
     el('pathInput').addEventListener('keydown', async (e) => { if (e.key === 'Enter') await loadDir(el('pathInput').value.trim()); });
 
+    updateProfileResolutionUI();
     Promise.all([loadEndpoints(), loadProfiles(), loadDir(''), loadStatsSummary()]).catch(err => { status(String(err),'err'); });
   </script>
 </body></html>

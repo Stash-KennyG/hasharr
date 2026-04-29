@@ -12,17 +12,18 @@ import (
 )
 
 type Profile struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Enabled      bool      `json:"enabled"`
-	RemotePath   string    `json:"remotePath"`
-	HasharrPath  string    `json:"hasharrPath"`
-	StashIndex   int       `json:"stashIndex"`
-	MaxTimeDelta float64   `json:"maxTimeDelta"`
-	MaxDistance  int       `json:"maxDistance"`
-	ApplyActions bool      `json:"applyActions"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	Enabled        bool      `json:"enabled"`
+	RemotePath     string    `json:"remotePath"`
+	HasharrPath    string    `json:"hasharrPath"`
+	StashIndex     int       `json:"stashIndex"`
+	MaxTimeDelta   float64   `json:"maxTimeDelta"`
+	MaxDistance    int       `json:"maxDistance"`
+	MaxResolutionY int       `json:"maxResolutionY"`
+	ApplyActions   bool      `json:"applyActions"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 type Store struct {
@@ -47,7 +48,7 @@ func New(path string) (*Store, error) {
 }
 
 func (s *Store) List(ctx context.Context) ([]Profile, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name,enabled,remote_path,hasharr_path,stash_index,max_time_delta,max_distance,apply_actions,created_at,updated_at FROM hash_service_profiles ORDER BY id ASC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,enabled,remote_path,hasharr_path,stash_index,max_time_delta,max_distance,max_resolution_y,apply_actions,created_at,updated_at FROM hash_service_profiles ORDER BY id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func (s *Store) List(ctx context.Context) ([]Profile, error) {
 		var p Profile
 		var enabled, apply int
 		var createdAtRaw, updatedAtRaw string
-		if err := rows.Scan(&p.ID, &p.Name, &enabled, &p.RemotePath, &p.HasharrPath, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &apply, &createdAtRaw, &updatedAtRaw); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &enabled, &p.RemotePath, &p.HasharrPath, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &p.MaxResolutionY, &apply, &createdAtRaw, &updatedAtRaw); err != nil {
 			return nil, err
 		}
 		p.Enabled = enabled != 0
@@ -73,8 +74,8 @@ func (s *Store) Get(ctx context.Context, id int64) (Profile, error) {
 	var p Profile
 	var enabled, apply int
 	var createdAtRaw, updatedAtRaw string
-	err := s.db.QueryRowContext(ctx, `SELECT id,name,enabled,remote_path,hasharr_path,stash_index,max_time_delta,max_distance,apply_actions,created_at,updated_at FROM hash_service_profiles WHERE id=?`, id).
-		Scan(&p.ID, &p.Name, &enabled, &p.RemotePath, &p.HasharrPath, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &apply, &createdAtRaw, &updatedAtRaw)
+	err := s.db.QueryRowContext(ctx, `SELECT id,name,enabled,remote_path,hasharr_path,stash_index,max_time_delta,max_distance,max_resolution_y,apply_actions,created_at,updated_at FROM hash_service_profiles WHERE id=?`, id).
+		Scan(&p.ID, &p.Name, &enabled, &p.RemotePath, &p.HasharrPath, &p.StashIndex, &p.MaxTimeDelta, &p.MaxDistance, &p.MaxResolutionY, &apply, &createdAtRaw, &updatedAtRaw)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -101,9 +102,18 @@ func (s *Store) Upsert(ctx context.Context, p Profile) (Profile, error) {
 	if p.MaxDistance > 8 {
 		p.MaxDistance = 8
 	}
+	if p.MaxResolutionY <= 0 {
+		p.MaxResolutionY = 4320
+	}
+	if p.MaxResolutionY < 480 {
+		p.MaxResolutionY = 480
+	}
+	if p.MaxResolutionY > 4320 {
+		p.MaxResolutionY = 4320
+	}
 	if p.ID <= 0 {
-		res, err := s.db.ExecContext(ctx, `INSERT INTO hash_service_profiles(name,enabled,remote_path,hasharr_path,stash_index,max_time_delta,max_distance,apply_actions) VALUES(?,?,?,?,?,?,?,?)`,
-			p.Name, boolInt(p.Enabled), p.RemotePath, p.HasharrPath, p.StashIndex, p.MaxTimeDelta, p.MaxDistance, boolInt(p.ApplyActions))
+		res, err := s.db.ExecContext(ctx, `INSERT INTO hash_service_profiles(name,enabled,remote_path,hasharr_path,stash_index,max_time_delta,max_distance,max_resolution_y,apply_actions) VALUES(?,?,?,?,?,?,?,?,?)`,
+			p.Name, boolInt(p.Enabled), p.RemotePath, p.HasharrPath, p.StashIndex, p.MaxTimeDelta, p.MaxDistance, p.MaxResolutionY, boolInt(p.ApplyActions))
 		if err != nil {
 			return Profile{}, err
 		}
@@ -113,8 +123,8 @@ func (s *Store) Upsert(ctx context.Context, p Profile) (Profile, error) {
 		}
 		return s.Get(ctx, id)
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE hash_service_profiles SET name=?,enabled=?,remote_path=?,hasharr_path=?,stash_index=?,max_time_delta=?,max_distance=?,apply_actions=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-		p.Name, boolInt(p.Enabled), p.RemotePath, p.HasharrPath, p.StashIndex, p.MaxTimeDelta, p.MaxDistance, boolInt(p.ApplyActions), p.ID)
+	_, err := s.db.ExecContext(ctx, `UPDATE hash_service_profiles SET name=?,enabled=?,remote_path=?,hasharr_path=?,stash_index=?,max_time_delta=?,max_distance=?,max_resolution_y=?,apply_actions=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+		p.Name, boolInt(p.Enabled), p.RemotePath, p.HasharrPath, p.StashIndex, p.MaxTimeDelta, p.MaxDistance, p.MaxResolutionY, boolInt(p.ApplyActions), p.ID)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -145,6 +155,7 @@ enabled INTEGER NOT NULL DEFAULT 1,
 stash_index INTEGER NOT NULL DEFAULT -1,
 max_time_delta REAL NOT NULL DEFAULT 1,
 max_distance INTEGER NOT NULL DEFAULT 0,
+max_resolution_y INTEGER NOT NULL DEFAULT 4320,
 apply_actions INTEGER NOT NULL DEFAULT 1,
 remote_path TEXT NOT NULL DEFAULT '',
 hasharr_path TEXT NOT NULL DEFAULT '',
@@ -153,9 +164,9 @@ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )`); err != nil {
 			return err
 		}
-		if _, err := db.Exec(`INSERT INTO hash_service_profiles(id,name,enabled,stash_index,max_time_delta,max_distance,apply_actions)
-VALUES(1,'metube-default',1,-1,1,0,1),
-      (2,'sab-default',1,-1,1,0,1)`); err != nil {
+		if _, err := db.Exec(`INSERT INTO hash_service_profiles(id,name,enabled,stash_index,max_time_delta,max_distance,max_resolution_y,apply_actions)
+VALUES(1,'metube-default',1,-1,1,0,4320,1),
+      (2,'sab-default',1,-1,1,0,4320,1)`); err != nil {
 			return err
 		}
 		if _, err := db.Exec(`INSERT INTO schema_migrations(version,applied_at) VALUES(1,CURRENT_TIMESTAMP)`); err != nil {
@@ -174,6 +185,19 @@ VALUES(1,'metube-default',1,-1,1,0,1),
 			}
 		}
 		if _, err := db.Exec(`INSERT INTO schema_migrations(version,applied_at) VALUES(2,CURRENT_TIMESTAMP)`); err != nil {
+			return err
+		}
+	}
+	if version < 3 {
+		if _, err := db.Exec(`ALTER TABLE hash_service_profiles ADD COLUMN max_resolution_y INTEGER NOT NULL DEFAULT 4320`); err != nil {
+			if !strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
+				return err
+			}
+		}
+		if _, err := db.Exec(`UPDATE hash_service_profiles SET max_resolution_y=4320 WHERE max_resolution_y IS NULL OR max_resolution_y <= 0`); err != nil {
+			return err
+		}
+		if _, err := db.Exec(`INSERT INTO schema_migrations(version,applied_at) VALUES(3,CURRENT_TIMESTAMP)`); err != nil {
 			return err
 		}
 	}

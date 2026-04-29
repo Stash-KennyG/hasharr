@@ -58,13 +58,17 @@
     .modal-actions { margin-top:10px; }
     .modal-actions button { margin-top:0; }
     input[type="range"] { -webkit-appearance:none; appearance:none; background:transparent; }
-    input[type="range"]::-webkit-slider-runnable-track { height:6px; background:#c7ccd5; border-radius:999px; }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height:6px;
+      background:linear-gradient(to right, var(--accent) 0%, var(--accent) var(--pct, 0%), #c7ccd5 var(--pct, 0%), #c7ccd5 100%);
+      border-radius:999px;
+    }
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%;
       background:var(--accent); border:0; margin-top:-5px;
     }
     input[type="range"]::-moz-range-track { height:6px; background:#c7ccd5; border-radius:999px; }
-    input[type="range"]::-moz-range-progress { height:6px; background:#c7ccd5; border-radius:999px; }
+    input[type="range"]::-moz-range-progress { height:6px; background:var(--accent); border-radius:999px; }
     input[type="range"]::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:var(--accent); border:0; }
     .browser-results { display:grid; grid-template-columns:1.2fr .8fr; gap:10px; }
     table { width:100%; border-collapse:collapse; font-size:12px; }

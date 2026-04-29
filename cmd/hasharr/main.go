@@ -71,14 +71,15 @@ type hashServiceRunRequest struct {
 }
 
 type hashServiceProfileRequest struct {
-	Name         string  `json:"name"`
-	Enabled      bool    `json:"enabled"`
-	RemotePath   string  `json:"remotePath"`
-	HasharrPath  string  `json:"hasharrPath"`
-	StashIndex   int     `json:"stashIndex"`
-	MaxTimeDelta float64 `json:"maxTimeDelta"`
-	MaxDistance  int     `json:"maxDistance"`
-	ApplyActions bool    `json:"applyActions"`
+	Name           string  `json:"name"`
+	Enabled        bool    `json:"enabled"`
+	RemotePath     string  `json:"remotePath"`
+	HasharrPath    string  `json:"hasharrPath"`
+	StashIndex     int     `json:"stashIndex"`
+	MaxTimeDelta   float64 `json:"maxTimeDelta"`
+	MaxDistance    int     `json:"maxDistance"`
+	MaxResolutionY int     `json:"maxResolutionY"`
+	ApplyActions   bool    `json:"applyActions"`
 }
 
 var computePHash = phash.Compute
@@ -526,14 +527,15 @@ func handleHashServiceProfiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out, err := hashServiceStore.Upsert(r.Context(), hashservice.Profile{
-			Name:         strings.TrimSpace(req.Name),
-			Enabled:      req.Enabled,
-			RemotePath:   strings.TrimSpace(req.RemotePath),
-			HasharrPath:  strings.TrimSpace(req.HasharrPath),
-			StashIndex:   req.StashIndex,
-			MaxTimeDelta: req.MaxTimeDelta,
-			MaxDistance:  req.MaxDistance,
-			ApplyActions: req.ApplyActions,
+			Name:           strings.TrimSpace(req.Name),
+			Enabled:        req.Enabled,
+			RemotePath:     strings.TrimSpace(req.RemotePath),
+			HasharrPath:    strings.TrimSpace(req.HasharrPath),
+			StashIndex:     req.StashIndex,
+			MaxTimeDelta:   req.MaxTimeDelta,
+			MaxDistance:    req.MaxDistance,
+			MaxResolutionY: req.MaxResolutionY,
+			ApplyActions:   req.ApplyActions,
 		})
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, err.Error())
@@ -568,15 +570,16 @@ func handleHashServiceProfileByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out, err := hashServiceStore.Upsert(r.Context(), hashservice.Profile{
-			ID:           id,
-			Name:         strings.TrimSpace(req.Name),
-			Enabled:      req.Enabled,
-			RemotePath:   strings.TrimSpace(req.RemotePath),
-			HasharrPath:  strings.TrimSpace(req.HasharrPath),
-			StashIndex:   req.StashIndex,
-			MaxTimeDelta: req.MaxTimeDelta,
-			MaxDistance:  req.MaxDistance,
-			ApplyActions: req.ApplyActions,
+			ID:             id,
+			Name:           strings.TrimSpace(req.Name),
+			Enabled:        req.Enabled,
+			RemotePath:     strings.TrimSpace(req.RemotePath),
+			HasharrPath:    strings.TrimSpace(req.HasharrPath),
+			StashIndex:     req.StashIndex,
+			MaxTimeDelta:   req.MaxTimeDelta,
+			MaxDistance:    req.MaxDistance,
+			MaxResolutionY: req.MaxResolutionY,
+			ApplyActions:   req.ApplyActions,
 		})
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, err.Error())
@@ -624,16 +627,17 @@ func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
 	req.FilePath = strings.TrimSpace(req.FilePath)
 	if req.FilePath == "" {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"status":       "ok",
-			"mode":         "validation",
-			"profileId":    profile.ID,
-			"profileName":  profile.Name,
-			"enabled":      profile.Enabled,
-			"applyActions": profile.ApplyActions,
-			"stashIndex":   profile.StashIndex,
-			"maxTimeDelta": profile.MaxTimeDelta,
-			"maxDistance":  profile.MaxDistance,
-			"message":      "Validation request accepted. Provide filePath to execute hashing workflow.",
+			"status":         "ok",
+			"mode":           "validation",
+			"profileId":      profile.ID,
+			"profileName":    profile.Name,
+			"enabled":        profile.Enabled,
+			"applyActions":   profile.ApplyActions,
+			"stashIndex":     profile.StashIndex,
+			"maxTimeDelta":   profile.MaxTimeDelta,
+			"maxDistance":    profile.MaxDistance,
+			"maxResolutionY": profile.MaxResolutionY,
+			"message":        "Validation request accepted. Provide filePath to execute hashing workflow.",
 		})
 		return
 	}
@@ -714,6 +718,10 @@ func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
 		maxY := 0
 		maxDur := 0.0
 		maxFPS := 0.0
+		maxResolutionY := profile.MaxResolutionY
+		if maxResolutionY <= 0 {
+			maxResolutionY = 4320
+		}
 		for _, l := range lookups {
 			ep := l.EndpointURL
 			for _, m := range l.Matches.ExactMatches {
@@ -721,8 +729,12 @@ func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					continue
 				}
-				if card.ResolutionY > maxY {
-					maxY = card.ResolutionY
+				effectiveMatchY := card.ResolutionY
+				if effectiveMatchY > maxResolutionY {
+					effectiveMatchY = maxResolutionY
+				}
+				if effectiveMatchY > maxY {
+					maxY = effectiveMatchY
 				}
 				if card.Duration > maxDur {
 					maxDur = card.Duration
@@ -740,7 +752,11 @@ func handleHashServiceRun(w http.ResponseWriter, r *http.Request) {
 		if srcFPS > 30 {
 			srcFPS = 30
 		}
-		if hashResult.ResolutionY > maxY {
+		effectiveSourceY := hashResult.ResolutionY
+		if effectiveSourceY > maxResolutionY {
+			effectiveSourceY = maxResolutionY
+		}
+		if effectiveSourceY > maxY {
 			reasons = append(reasons, "Larger Resolution Detected")
 			outcome |= 4
 		}
